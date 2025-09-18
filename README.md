@@ -16,6 +16,16 @@ Usage & cost tracking: View AI API usage and estimated costs to avoid budget sur
 
 Why SecuraAI?
 SecuraAI empowers semi-coders, non-coders, students, and small teams to secure their projects without deep security expertise. It combines actionable feedback, educational guidance, and transparent AI cost monitoring for a smooth, worry-free code security experience.
+<img width="1892" height="968" alt="image" src="https://github.com/user-attachments/assets/422fedff-4a16-429e-818b-1359c8cca631" />
+<img width="1885" height="958" alt="image" src="https://github.com/user-attachments/assets/efa7ec42-5c16-4f86-8f1b-ab6cde702f15" />
+<img width="1902" height="962" alt="image" src="https://github.com/user-attachments/assets/13aa7fa0-beef-4dd1-8b2b-2ba1dcfbf81d" />
+<img width="1895" height="950" alt="image" src="https://github.com/user-attachments/assets/22f1620a-77e0-4121-9159-eff66f88233d" />
+<img width="1887" height="957" alt="image" src="https://github.com/user-attachments/assets/45ae7cd7-ab5a-42ef-973c-03fdfd2fa937" />
+
+
+
+
+
 
 Getting Started
 Clone this repository.
