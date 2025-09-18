@@ -1,0 +1,15 @@
+{
+  "name": "ai-security-auditor",
+  "version": "0.1.0",
+  "description": "AI-powered security auditing tool",
+  "scripts": {
+    "frontend": "next dev",
+    "backend": "cd backend && npm run dev",
+    "dev": "concurrently \"npm run frontend\" \"npm run backend\"",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
