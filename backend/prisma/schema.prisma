@@ -1,0 +1,123 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UserProfile {
+  id              String         @id @db.Uuid
+  email           String
+  name            String?
+  avatarUrl       String?        @map("avatar_url")
+  dailyBudgetCents Int           @default(200) @map("daily_budget_cents")
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  projects        Project[]
+  scans           Scan[]
+  usageEvents     UsageEvent[]   @relation("UserUsageEvents")
+
+  @@map("user_profiles")
+}
+
+model Project {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String
+  source    String
+  repoUrl   String?  @map("repo_url")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  user      UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scans     Scan[]
+
+  @@map("projects")
+}
+
+model Scan {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId      String    @map("project_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  status         String
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+  riskScore      Int       @default(0) @map("risk_score")
+  totalFindings  Int       @default(0) @map("total_findings")
+  criticalCount  Int       @default(0) @map("critical_count")
+  highCount      Int       @default(0) @map("high_count")
+  mediumCount    Int       @default(0) @map("medium_count")
+  lowCount       Int       @default(0) @map("low_count")
+  reportJson     Json?     @map("report_json")
+  errorMessage   String?   @map("error_message")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user           UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  findings       Finding[]
+
+  @@map("scans")
+}
+
+model Finding {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scanId      String   @map("scan_id") @db.Uuid
+  ruleId      String   @map("rule_id")
+  severity    String
+  filePath    String   @map("file_path")
+  startLine   Int      @map("start_line")
+  endLine     Int      @map("end_line")
+  title       String
+  message     String?
+  codeSnippet String?  @map("code_snippet")
+  category    String?
+  cwe         String[]
+  owasp       String[]
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  scan        Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  explanation Explanation?
+
+  @@map("findings")
+}
+
+model Explanation {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  findingId         String   @unique @map("finding_id") @db.Uuid
+  summary           String
+  whyItMatters      String?  @map("why_it_matters")
+  fixSteps          String?  @map("fix_steps")
+  bestPractices     String?  @map("best_practices")
+  preventionTips    String?  @map("prevention_tips")
+  cachedKey         String   @map("cached_key")
+  model             String
+  promptTokens      Int      @default(0) @map("prompt_tokens")
+  completionTokens  Int      @default(0) @map("completion_tokens")
+  costCents         Int      @default(0) @map("cost_cents")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  finding           Finding  @relation(fields: [findingId], references: [id], onDelete: Cascade)
+
+  @@index([cachedKey], map: "idx_explanations_cached_key")
+  @@map("explanations")
+}
+
+model UsageEvent {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  eventType String   @map("event_type")
+  scanId    String?  @map("scan_id") @db.Uuid
+  metadata  Json?
+  costCents Int      @default(0) @map("cost_cents")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  user      UserProfile @relation("UserUsageEvents", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("usage_events")
+}

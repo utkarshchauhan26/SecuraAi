@@ -1,51 +1,125 @@
-# AI Security Auditor Backend
+# SecuraAI Backend
 
-Backend service for the AI Security Auditor application, providing code scanning, vulnerability detection, and AI-powered explanations.
+Backend service for SecuraAI - AI-powered security code auditing platform.
 
-## Setup Instructions
+## Features
 
-### Prerequisites
+- 🔐 **Authentication**: Supabase Auth with GitHub/Google OAuth
+- 🗄️ **Database**: PostgreSQL via Supabase with Prisma ORM
+- 🔍 **Code Scanning**: Semgrep integration for static analysis
+- 🤖 **AI Explanations**: OpenAI GPT-4o-mini for vulnerability insights
+- 💰 **Cost Tracking**: Token usage and budget management
+- 📊 **PDF Reports**: Comprehensive security reports with Puppeteer
+- ⚡ **Caching**: Response caching to reduce API costs
 
-- Node.js (v14+)
-- Python 3.x (for Semgrep)
-- Semgrep (`pip install semgrep`)
-- OpenAI API key
+## Prerequisites
 
-### Installation
+- **Node.js** v18+ 
+- **Python 3.x** (for Semgrep)
+- **Semgrep** (`pip install semgrep`)
+- **Supabase Account** (free tier works)
+- **OpenAI API Key** (for AI explanations)
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+## Quick Start
 
-2. Create a `.env` file in the root directory with the following variables:
-   ```
-   PORT=5000
-   NODE_ENV=development
-   FRONTEND_URL=http://localhost:3000
-   OPENAI_API_KEY=your-openai-api-key
-   MAX_TOKENS_PER_REQUEST=2000
-   CACHE_TTL=3600
-   UPLOADS_DIR=./uploads
-   TEMP_DIR=./temp
-   GITHUB_TOKEN=your-github-token-if-needed
-   ```
+### 1. Install Dependencies
 
-3. Ensure Semgrep is installed:
-   ```bash
-   pip install semgrep
-   ```
+```bash
+npm install
+```
 
-4. Create required directories:
-   ```bash
-   mkdir -p uploads temp
-   ```
+### 2. Set Up Supabase
 
-### Running the Server
+Follow the comprehensive guide in `../SUPABASE_SETUP.md` to:
+- Create Supabase project
+- Configure OAuth providers (GitHub + Google)
+- Run database migrations
+- Get API keys and connection string
 
-Development mode:
+### 3. Configure Environment Variables
+
+Copy the example file and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+Required variables:
+```bash
+# Database (from Supabase)
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres
+
+# Supabase API (from Supabase dashboard)
+SUPABASE_URL=https://[PROJECT].supabase.co
+SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_KEY=eyJ...
+SUPABASE_JWT_SECRET=your-jwt-secret
+
+# Authentication
+NEXTAUTH_SECRET=generate-with-openssl-rand-base64-32
+
+# OpenAI
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
+```
+
+### 4. Generate Prisma Client
+
+```bash
+npm run prisma:generate
+```
+
+### 5. Install Semgrep
+
+```bash
+pip install semgrep
+# Verify installation
+semgrep --version
+```
+
+### 6. Create Required Directories
+
+```bash
+mkdir -p uploads temp cache
+```
+
+### 7. Start Development Server
+
 ```bash
 npm run dev
+```
+
+Server will start on `http://localhost:5000`
+
+## Project Structure
+
+```
+backend/
+├── controllers/         # Request handlers
+│   ├── scan.controller.js
+│   ├── github.controller.js
+│   ├── report.controller.js
+│   └── usage.controller.js
+├── middleware/          # Express middleware
+│   ├── auth.js         # JWT verification
+│   └── fileValidation.js
+├── services/           # Business logic
+│   ├── semgrep.service.js    # Code scanning
+│   ├── ai.service.js         # OpenAI integration
+│   ├── scoring.service.js    # Risk calculation
+│   └── usage.service.js      # Cost tracking
+├── routes/             # API routes
+│   ├── index.js
+│   ├── scan.routes.js
+│   ├── github.routes.js
+│   ├── report.routes.js
+│   └── usage.routes.js
+├── prisma/            # Database
+│   ├── schema.prisma  # Prisma schema
+│   └── schema.sql     # Supabase SQL
+├── lib/               # Utilities
+│   └── prisma.js      # Prisma client
+└── server.js          # Entry point
 ```
 
 Production mode:
