@@ -33,11 +33,8 @@ export default function LandingPage() {
           transition={{ duration: 0.6, delay: 0.1 }}
           className="flex items-center space-x-4"
         >
-          <Button variant="ghost" className="text-muted-foreground hover:text-foreground" asChild>
-            <Link href="/dashboard">Skip Login</Link>
-          </Button>
           <Button className="bg-primary hover:bg-primary/90" asChild>
-            <Link href="/dashboard">Get Started</Link>
+            <Link href="/auth/signin">Get Started</Link>
           </Button>
         </motion.div>
       </nav>
@@ -78,7 +75,7 @@ export default function LandingPage() {
               className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-4 text-lg group"
               asChild
             >
-              <Link href="/dashboard">
+              <Link href="/auth/signin">
                 <Upload className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
                 Upload Project
                 <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
@@ -90,7 +87,7 @@ export default function LandingPage() {
               className="border-border hover:bg-muted px-8 py-4 text-lg group bg-transparent"
               asChild
             >
-              <Link href="/dashboard">
+              <Link href="/auth/signin">
                 <Eye className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
                 Try Demo Report
               </Link>

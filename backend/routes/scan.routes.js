@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const scanController = require('../controllers/scan.controller');
+const scanController = require('../controllers/scan-controller-robust');
 const { validateFileType } = require('../middleware/fileValidation');
+const { requireAuthSupabase } = require('../middleware/auth-supabase');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -21,10 +22,15 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
 });
 
+// All routes require authentication
+router.use(requireAuthSupabase);
+
 // Routes
 router.post('/file', upload.single('codeFile'), validateFileType, scanController.scanFile);
 router.post('/repo', scanController.scanRepository);
-router.get('/status/:scanId', scanController.getScanStatus);
-router.get('/results/:scanId', scanController.getScanResults);
+router.get('/status/:scanId', scanController.getScanStatus); // Get scan status
+router.get('/progress/:scanId', scanController.getScanProgress); // Get real-time progress
+router.get('/details/:scanId', scanController.getScanDetails);
+router.get('/list', scanController.getUserScans); // Get all user scans
 
 module.exports = router;

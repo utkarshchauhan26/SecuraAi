@@ -15,6 +15,7 @@ interface UploadedFile {
   type: string
   status: "uploading" | "ready" | "error"
   error?: string
+  file?: File // Add the actual File object
 }
 
 interface UploadZoneProps {
@@ -64,20 +65,19 @@ export function UploadZone({ onFilesUpload, uploadedFiles, maxFiles = 10, maxFil
   const [isDragOver, setIsDragOver] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
 
-  const validateFile = (file: File): { valid: boolean; error?: string } => {
-    // Check file size
-    if (file.size > maxFileSize * 1024 * 1024) {
-      return { valid: false, error: `File too large (max ${maxFileSize}MB)` }
+    const validateFile = useCallback((file: File): { valid: boolean; error?: string } => {
+    const ext = `.${file.name.split(".").pop()?.toLowerCase()}`
+    
+    if (!SUPPORTED_EXTENSIONS.includes(ext)) {
+      return { valid: false, error: `${ext} files are not supported` }
     }
 
-    // Check file extension
-    const extension = "." + file.name.split(".").pop()?.toLowerCase()
-    if (!SUPPORTED_EXTENSIONS.includes(extension)) {
-      return { valid: false, error: "Unsupported file type" }
+    if (file.size > maxFileSize * 1024 * 1024) {
+      return { valid: false, error: `File exceeds ${maxFileSize}MB limit` }
     }
 
     return { valid: true }
-  }
+  }, [maxFileSize])
 
   const processFiles = useCallback(
     (files: FileList | File[]) => {
@@ -101,6 +101,7 @@ export function UploadZone({ onFilesUpload, uploadedFiles, maxFiles = 10, maxFil
             size: file.size,
             type: file.type || "application/octet-stream",
             status: "ready",
+            file: file, // Store the actual File object
           })
         } else {
           newErrors.push(`${file.name}: ${validation.error}`)

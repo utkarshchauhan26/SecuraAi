@@ -12,28 +12,34 @@ class ScoringService {
       return 100; // Perfect score if no findings
     }
     
-    // Count findings by severity
-    const highCount = findings.filter(f => f.severity === 'high').length;
-    const mediumCount = findings.filter(f => f.severity === 'medium').length;
-    const lowCount = findings.filter(f => f.severity === 'low').length;
+    // Count findings by severity (updated severity levels)
+    const criticalCount = findings.filter(f => f.severity === 'CRITICAL').length;
+    const highCount = findings.filter(f => f.severity === 'HIGH').length;
+    const mediumCount = findings.filter(f => f.severity === 'MEDIUM').length;
+    const lowCount = findings.filter(f => f.severity === 'LOW').length;
     
     // Weights for different severity levels
+    const criticalWeight = 20;  // Critical issues have massive impact
     const highWeight = 10;
     const mediumWeight = 5;
     const lowWeight = 1;
     
     // Calculate weighted score
-    const totalWeight = highCount * highWeight + mediumCount * mediumWeight + lowCount * lowWeight;
+    const totalWeight = 
+      criticalCount * criticalWeight + 
+      highCount * highWeight + 
+      mediumCount * mediumWeight + 
+      lowCount * lowWeight;
     
     // Convert to a score from 0-100 (higher is better)
-    // This formula creates a non-linear curve that drops quickly with high severity issues
+    // This formula creates a non-linear curve that drops quickly with critical/high severity issues
     const baseScore = 100;
-    const weightMultiplier = 3; // Controls how quickly the score drops
+    const weightMultiplier = 2; // Controls how quickly the score drops
     
     const score = baseScore - (totalWeight * weightMultiplier);
     
     // Ensure score is between 0 and 100
-    return Math.max(0, Math.min(100, score));
+    return Math.max(0, Math.min(100, Math.round(score)));
   }
   
   /**

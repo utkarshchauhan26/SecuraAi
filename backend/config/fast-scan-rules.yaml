@@ -1,0 +1,39 @@
+rules:
+  - id: hardcoded-password
+    pattern: password = "..."
+    message: Hardcoded password detected
+    severity: ERROR
+    languages: [javascript, typescript, python, java]
+    
+  - id: sql-injection
+    pattern-either:
+      - pattern: |
+          $QUERY = "..." + $INPUT + "..."
+          $DB.query($QUERY)
+      - pattern: |
+          $DB.query("..." + $INPUT + "...")
+    message: Possible SQL injection vulnerability
+    severity: ERROR
+    languages: [javascript, typescript, python, java, php]
+    
+  - id: xss-vulnerability
+    pattern-either:
+      - pattern: innerHTML = $INPUT
+      - pattern: "dangerouslySetInnerHTML={{ __html: $INPUT }}"
+    message: Possible XSS vulnerability
+    severity: WARNING
+    languages: [javascript, typescript]
+    
+  - id: eval-usage
+    pattern-either:
+      - pattern: eval($INPUT)
+      - pattern: Function($INPUT)
+    message: Use of eval() is dangerous
+    severity: ERROR
+    languages: [javascript, typescript]
+    
+  - id: api-key-exposure
+    pattern-regex: (api[_-]?key|apikey|api[_-]?secret)\s*=\s*[\"'][a-zA-Z0-9]{20,}[\"']
+    message: Possible API key exposure
+    severity: ERROR
+    languages: [javascript, typescript, python, java, go]

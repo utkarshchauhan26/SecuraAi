@@ -10,7 +10,7 @@ import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 
 interface ScanConfig {
-  model: "fast" | "accurate"
+  model: "fast" | "deep"
   severity: string[]
   includeTests: boolean
   includeDependencies: boolean
@@ -36,7 +36,9 @@ export function ScanConfiguration({
   const [isExpanded, setIsExpanded] = useState(false)
 
   const updateConfig = (updates: Partial<ScanConfig>) => {
-    onConfigChange({ ...config, ...updates })
+    const newConfig = { ...config, ...updates }
+    console.log('🔧 Scan config updated:', newConfig)
+    onConfigChange(newConfig)
   }
 
   const toggleSeverity = (severity: string) => {
@@ -49,18 +51,18 @@ export function ScanConfiguration({
   const modelOptions = {
     fast: {
       name: "Fast Scan",
-      description: "Quick analysis with basic security checks",
+      description: "Critical vulnerabilities only (OWASP Top 10, Secrets) - Recommended for most projects",
       icon: Zap,
-      time: "~2 minutes",
-      cost: "Low cost",
+      time: "~2-3 min",
+      cost: "Free",
       color: "text-green-400",
     },
-    accurate: {
-      name: "Deep Analysis",
-      description: "Comprehensive AI-powered security audit",
+    deep: {
+      name: "Deep Analysis", 
+      description: "Comprehensive security audit with all vulnerability types",
       icon: Shield,
-      time: "~8 minutes",
-      cost: "Higher cost",
+      time: "~5-10 min",
+      cost: "Premium",
       color: "text-blue-400",
     },
   }
@@ -78,6 +80,9 @@ export function ScanConfiguration({
           <div className="flex items-center space-x-2">
             <Settings className="w-5 h-5 text-muted-foreground" />
             <h3 className="text-sm font-medium">Scan Configuration</h3>
+            <span className="text-xs text-blue-400 bg-blue-400/10 px-2 py-1 rounded">
+              {config.model.toUpperCase()}
+            </span>
           </div>
           <Button
             variant="ghost"
@@ -105,7 +110,10 @@ export function ScanConfiguration({
                     className={`cursor-pointer transition-all duration-200 ${
                       isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
                     }`}
-                    onClick={() => updateConfig({ model: key as "fast" | "accurate" })}
+                    onClick={() => {
+                      console.log(`🖱️ Clicked ${key} button, current model: ${config.model}`)
+                      updateConfig({ model: key as "fast" | "deep" })
+                    }}
                   >
                     <div className="p-3">
                       <div className="flex items-center justify-between mb-2">

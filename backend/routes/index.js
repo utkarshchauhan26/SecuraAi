@@ -8,9 +8,9 @@ const reportRoutes = require('./report.routes');
 const usageRoutes = require('./usage.routes');
 
 // Mount routes
-router.use('/scan', scanRoutes);
+router.use('/scans', scanRoutes); // Changed from /scan to /scans
 router.use('/github', githubRoutes);
-router.use('/report', reportRoutes);
+router.use('/reports', reportRoutes); // Changed from /report to /reports
 router.use('/usage', usageRoutes);
 
 // Health check route
