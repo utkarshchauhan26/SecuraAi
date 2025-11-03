@@ -13,10 +13,28 @@ app.get('/health', (req, res) => {
 });
 
 // Middleware
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://secura-ai-pink.vercel.app',
+  'https://securaai.vercel.app', // Add any other Vercel preview URLs if needed
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
+console.log('🌐 Allowed CORS origins:', allowedOrigins);
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.FRONTEND_URL 
-    : 'http://localhost:3000',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('✅ CORS allowed for origin:', origin);
+      callback(null, true);
+    } else {
+      console.log('❌ CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 app.use(express.json());
