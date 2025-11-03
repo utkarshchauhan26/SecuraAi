@@ -111,29 +111,12 @@ const generatePdf = async (req, res) => {
     // Generate the PDF report
     const report = await pdfService.generateScanReport(scanId, userId);
 
-    // Upload to Supabase Storage (best-effort, non-blocking for download)
-    let storageMeta = null;
-    try {
-      storageMeta = await pdfService.uploadToSupabase(scanId, report.filePath, report.fileName);
-    } catch (e) {
-      console.warn('Upload to Supabase failed (non-fatal):', e?.message || e);
-    }
-
     // Update scan record with report generation timestamp (optional, non-critical)
     await supabase
       .from('scans')
       .update({
         report_generated: true,
         report_generated_at: new Date().toISOString()
-        ,
-        report_json: {
-          fileName: report.fileName,
-          size: report.size,
-          storageBucket: storageMeta?.bucket || null,
-          storagePath: storageMeta?.storagePath || null,
-          signedUrl: storageMeta?.signedUrl || null,
-          uploadedAt: new Date().toISOString()
-        }
       })
       .eq('id', scanId)
       .then(() => console.log('Scan metadata updated'))

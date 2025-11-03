@@ -120,57 +120,6 @@ class OptimizedPDFService {
   }
 
   /**
-   * Upload a generated PDF to Supabase Storage and return storage metadata
-   * - Bucket name can be overridden via SUPABASE_REPORTS_BUCKET, defaults to 'reports'
-   * - Stored at scans/{scanId}/{fileName}
-   */
-  async uploadToSupabase(scanId, filePath, fileName) {
-    const bucket = process.env.SUPABASE_REPORTS_BUCKET || 'reports';
-    const storagePath = `scans/${scanId}/${fileName}`;
-
-    try {
-      const buffer = await fs.readFile(filePath);
-
-      const { error: uploadError } = await supabase
-        .storage
-        .from(bucket)
-        .upload(storagePath, buffer, {
-          contentType: 'application/pdf',
-          upsert: true
-        });
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      // Create a signed URL valid for 7 days (604800 seconds)
-      const { data: signed, error: signedError } = await supabase
-        .storage
-        .from(bucket)
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
-
-      if (signedError) {
-        // Not critical; proceed without signed URL
-        console.warn('Could not create signed URL for report:', signedError.message);
-      }
-
-      return {
-        bucket,
-        storagePath,
-        signedUrl: signed?.signedUrl || null
-      };
-    } catch (err) {
-      console.error('Supabase Storage upload failed:', err);
-      return {
-        bucket,
-        storagePath,
-        signedUrl: null,
-        error: err?.message || String(err)
-      };
-    }
-  }
-
-  /**
    * Calculate security metrics
    */
   _calculateMetrics(scan) {
