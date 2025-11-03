@@ -46,7 +46,8 @@ const scanRepository = async (req, res) => {
       .insert({
         id: uuidv4(),
         name: repoName,
-        description: `GitHub repository: ${repoUrl}`,
+        source: 'github',
+        repo_url: repoUrl,
         user_id: userId
       })
       .select()
@@ -68,12 +69,8 @@ const scanRepository = async (req, res) => {
         id: scanId,
         project_id: project.id,
         user_id: userId,
-        type: scanType,
         status: 'queued',
-        scan_metadata: {
-          repo_url: repoUrl,
-          scan_mode: 'github_actions'
-        }
+        started_at: new Date().toISOString()
       })
       .select()
       .single();
@@ -113,11 +110,8 @@ const scanRepository = async (req, res) => {
         .from('scans')
         .update({
           status: 'failed',
-          completed_at: new Date().toISOString(),
-          scan_metadata: {
-            ...scan.scan_metadata,
-            error: triggerError.message
-          }
+          finished_at: new Date().toISOString(),
+          error_message: triggerError.message
         })
         .eq('id', scan.id);
 
@@ -167,7 +161,7 @@ const scanFile = async (req, res) => {
       .insert({
         id: uuidv4(),
         name: req.file.originalname.replace(/\.[^/.]+$/, ""),
-        description: `Uploaded file: ${req.file.originalname}`,
+        source: 'upload',
         user_id: userId
       })
       .select()
@@ -189,13 +183,8 @@ const scanFile = async (req, res) => {
         id: scanId,
         project_id: project.id,
         user_id: userId,
-        type: scanType,
         status: 'queued',
-        scan_metadata: {
-          filename: req.file.originalname,
-          file_path: req.file.path,
-          scan_mode: 'github_actions'
-        }
+        started_at: new Date().toISOString()
       })
       .select()
       .single();
@@ -261,9 +250,9 @@ const getScanStatus = async (req, res) => {
       data: {
         id: scan.id,
         status: scan.status,
-        type: scan.type,
         createdAt: scan.created_at,
-        completedAt: scan.completed_at,
+        startedAt: scan.started_at,
+        finishedAt: scan.finished_at,
         totalFindings: scan.total_findings || 0,
         criticalCount: scan.critical_count || 0,
         highCount: scan.high_count || 0,
@@ -322,15 +311,16 @@ const getScanDetails = async (req, res) => {
         scan: {
           id: scan.id,
           status: scan.status,
-          type: scan.type,
           createdAt: scan.created_at,
-          completedAt: scan.completed_at,
+          startedAt: scan.started_at,
+          finishedAt: scan.finished_at,
           totalFindings: scan.total_findings || 0
         },
         project: {
           id: scan.projects.id,
           name: scan.projects.name,
-          description: scan.projects.description
+          source: scan.projects.source,
+          repoUrl: scan.projects.repo_url
         },
         findings: findings || []
       }
@@ -373,10 +363,10 @@ const getUserScans = async (req, res) => {
         id: scan.id,
         projectName: scan.projects?.name || 'Unknown',
         status: scan.status,
-        type: scan.type,
         totalFindings: scan.total_findings || 0,
         createdAt: scan.created_at,
-        completedAt: scan.completed_at
+        startedAt: scan.started_at,
+        finishedAt: scan.finished_at
       }))
     });
   } catch (error) {
