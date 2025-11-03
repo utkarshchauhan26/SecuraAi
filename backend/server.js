@@ -9,7 +9,15 @@ const routes = require('./routes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ 
+    status: 'ok',
+    environment: {
+      hasGithubToken: !!process.env.GITHUB_TOKEN,
+      hasSupabaseUrl: !!process.env.SUPABASE_URL,
+      hasSupabaseKey: !!process.env.SUPABASE_SERVICE_KEY,
+      hasNextAuthSecret: !!process.env.NEXTAUTH_SECRET
+    }
+  });
 });
 
 // Middleware

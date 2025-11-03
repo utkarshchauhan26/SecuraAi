@@ -11,7 +11,10 @@ class GitHubActionsService {
     this.token = process.env.GITHUB_TOKEN;
     
     if (!this.token) {
-      console.warn('⚠️ GITHUB_TOKEN not set - GitHub Actions triggers will fail');
+      console.error('❌ GITHUB_TOKEN not set in environment variables!');
+      console.error('📋 To fix: Add GITHUB_TOKEN to Render environment with a GitHub PAT (repo + workflow scopes)');
+    } else {
+      console.log('✅ GITHUB_TOKEN is configured');
     }
   }
 
@@ -29,11 +32,14 @@ class GitHubActionsService {
     } = payload;
 
     if (!this.token) {
-      throw new Error('GitHub token not configured');
+      const errorMsg = 'GitHub token not configured. Please add GITHUB_TOKEN to environment variables on Render.';
+      console.error('❌', errorMsg);
+      throw new Error(errorMsg);
     }
 
     try {
       console.log(`🚀 Triggering GitHub Actions scan for scanId: ${scanId}`);
+      console.log(`🔑 Using token: ${this.token.substring(0, 7)}...`);
       
       const response = await axios.post(
         `https://api.github.com/repos/${this.owner}/${this.repo}/dispatches`,
@@ -64,8 +70,17 @@ class GitHubActionsService {
         scanId
       };
     } catch (error) {
-      console.error('❌ Failed to trigger GitHub Actions:', error.response?.data || error.message);
-      throw new Error(`Failed to trigger scan: ${error.response?.data?.message || error.message}`);
+      const errorDetails = error.response?.data || error.message;
+      console.error('❌ Failed to trigger GitHub Actions:', errorDetails);
+      console.error('📋 Status:', error.response?.status);
+      
+      if (error.response?.status === 401) {
+        throw new Error('Invalid GitHub token. Please check GITHUB_TOKEN on Render (needs repo + workflow scopes)');
+      } else if (error.response?.status === 404) {
+        throw new Error('Repository not found. Check owner/repo in github-actions.service.js');
+      } else {
+        throw new Error(`Failed to trigger scan: ${errorDetails.message || errorDetails}`);
+      }
     }
   }
 
