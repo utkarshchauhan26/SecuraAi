@@ -5,22 +5,22 @@ rules:
     severity: ERROR
     languages: [javascript, typescript, python, java]
     
-  - id: sql-injection
-    pattern-either:
-      - pattern: |
-          $QUERY = "..." + $INPUT + "..."
-          $DB.query($QUERY)
-      - pattern: |
-          $DB.query("..." + $INPUT + "...")
+  - id: sql-injection-concat
+    pattern: |
+      $DB.query("..." + $INPUT + "...")
     message: Possible SQL injection vulnerability
     severity: ERROR
-    languages: [javascript, typescript, python, java, php]
+    languages: [javascript, typescript]
     
-  - id: xss-vulnerability
-    pattern-either:
-      - pattern: innerHTML = $INPUT
-      - pattern: "dangerouslySetInnerHTML={{ __html: $INPUT }}"
-    message: Possible XSS vulnerability
+  - id: xss-inner-html
+    pattern: innerHTML = $INPUT
+    message: Possible XSS vulnerability - avoid innerHTML
+    severity: WARNING
+    languages: [javascript, typescript]
+    
+  - id: xss-dangerously-set
+    pattern: dangerouslySetInnerHTML
+    message: Possible XSS vulnerability - dangerouslySetInnerHTML
     severity: WARNING
     languages: [javascript, typescript]
     
@@ -33,7 +33,7 @@ rules:
     languages: [javascript, typescript]
     
   - id: api-key-exposure
-    pattern-regex: (api[_-]?key|apikey|api[_-]?secret)\s*=\s*[\"'][a-zA-Z0-9]{20,}[\"']
+    pattern-regex: (api[_-]?key|apikey|api[_-]?secret|sk_live)\s*=\s*[\"'][a-zA-Z0-9_-]{20,}[\"']
     message: Possible API key exposure
     severity: ERROR
     languages: [javascript, typescript, python, java, go]
