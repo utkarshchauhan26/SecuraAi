@@ -49,8 +49,18 @@ export function ScanProvider({ children }: ScanProviderProps) {
   // Auto-detect scanning state
   useEffect(() => {
     if (scanStatus) {
-      const scanning = scanStatus.status === 'PENDING' || scanStatus.status === 'RUNNING'
+      const scanning = scanStatus.status === 'PENDING' || 
+                      scanStatus.status === 'RUNNING' ||
+                      scanStatus.status === 'QUEUED'
       setIsScanning(scanning)
+      
+      // Auto-clear when completed or failed
+      if (scanStatus.status === 'COMPLETED' || scanStatus.status === 'FAILED') {
+        console.log(`✅ Scan ${scanStatus.status.toLowerCase()} - auto-clearing in 1s`)
+        setTimeout(() => {
+          setIsScanning(false)
+        }, 1000)
+      }
     }
   }, [scanStatus])
 

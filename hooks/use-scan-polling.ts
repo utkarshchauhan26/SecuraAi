@@ -5,7 +5,7 @@ import { apiClient } from '@/lib/api-client'
 
 interface ScanStatus {
   id: string
-  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+  status: 'PENDING' | 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'
   progress?: number
   error?: string
   filename?: string
@@ -82,17 +82,39 @@ export function useScanPolling({
       if (!mountedRef.current) return
 
       if (response.success && response.data) {
-        const status = response.data
+        let status = response.data
+        
+        console.log('🔍 Raw API response status:', status.status, typeof status.status)
+        
+        // Normalize status to uppercase for consistency
+        if (status.status) {
+          const normalizedStatus = status.status.toUpperCase() as ScanStatus['status']
+          status = {
+            ...status,
+            status: normalizedStatus
+          }
+          console.log('✅ Normalized status:', status.status)
+        }
+        
+        console.log('🔎 Final scan status object:', {
+          id: status.id,
+          status: status.status,
+          total_findings: status.findings_count,
+          finished_at: status.finished_at
+        })
+        
         setScanStatus(status)
 
         // Stop polling if scan is complete
         if (status.status === 'COMPLETED') {
+          console.log('🎉 Scan COMPLETED - stopping polling')
           if (intervalRef.current) {
             clearInterval(intervalRef.current)
             intervalRef.current = null
           }
           onComplete?.(status)
         } else if (status.status === 'FAILED') {
+          console.log('❌ Scan FAILED - stopping polling')
           if (intervalRef.current) {
             clearInterval(intervalRef.current)
             intervalRef.current = null
@@ -100,6 +122,8 @@ export function useScanPolling({
           const errorMsg = status.error || 'Scan failed'
           setError(errorMsg)
           onError?.(errorMsg)
+        } else {
+          console.log('⏳ Scan still in progress:', status.status)
         }
       } else {
         throw new Error(response.message || 'Failed to fetch scan status')

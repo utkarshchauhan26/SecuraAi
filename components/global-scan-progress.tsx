@@ -107,29 +107,53 @@ export function GlobalScanProgress() {
   }
 
   const getProgressValue = () => {
-    if (scanError) return 0
-    if (!scanStatus) return 15
-    if (scanStatus.status === 'COMPLETED') return 100
-    if (scanStatus.status === 'FAILED') return 0
-    if (scanStatus.status === 'PENDING') return 10
+    console.log('🔎 Computing progress - scanStatus:', scanStatus)
+    console.log('🔎 scanStatus?.status:', scanStatus?.status, 'scanError:', scanError)
+    
+    if (scanError) {
+      console.log('❌ Progress = 0 (error)')
+      return 0
+    }
+    if (!scanStatus) {
+      console.log('⏳ Progress = 15 (no status yet)')
+      return 15
+    }
+    if (scanStatus.status === 'COMPLETED') {
+      console.log('✅ Progress = 100 (COMPLETED)')
+      return 100
+    }
+    if (scanStatus.status === 'FAILED') {
+      console.log('❌ Progress = 0 (FAILED)')
+      return 0
+    }
+    if (scanStatus.status === 'PENDING' || scanStatus.status === 'QUEUED') {
+      console.log('⏳ Progress = 10 (PENDING/QUEUED)')
+      return 10
+    }
     
     // Use actual progress if available
     if (scanStatus.progress !== undefined) {
+      console.log('🔄 Progress from scanStatus.progress:', scanStatus.progress)
       return scanStatus.progress
     }
     
     // Use processed files ratio
     if (scanStatus.processed_files && scanStatus.file_count) {
-      return Math.min(95, (scanStatus.processed_files / scanStatus.file_count) * 100)
+      const fileProgress = Math.min(95, (scanStatus.processed_files / scanStatus.file_count) * 100)
+      console.log('📁 Progress from files:', fileProgress)
+      return fileProgress
     }
     
     if (scanStatus.status === 'RUNNING' && scanStatus.started_at) {
       // Estimate progress based on time (assuming 5 minutes max)
       const elapsed = Date.now() - new Date(scanStatus.started_at).getTime()
       const maxTime = 5 * 60 * 1000 // 5 minutes
-      return Math.min(85, 15 + (elapsed / maxTime) * 70) // Start at 15%, max 85% until completion
+      const timeProgress = Math.min(85, 15 + (elapsed / maxTime) * 70) // Start at 15%, max 85% until completion
+      console.log('⏰ Progress from time:', timeProgress)
+      return timeProgress
     }
-    
+
+    console.log('🔍 Progress = 30 (default)')
     return 30
   }
 
