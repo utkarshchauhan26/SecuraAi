@@ -77,11 +77,16 @@ jobs:
           (github.event_name == 'workflow_dispatch' && github.event.inputs.scan_type == 'fast') ||
           (github.event_name == 'repository_dispatch' && github.event.client_payload.scan_type == 'fast')
         run: |
+          # Use local fast scan rules (NO internet downloads, NO rate limits)
           semgrep scan \
-            --config=auto \
+            --config=backend/config/fast-scan-rules.yaml \
             --json \
             --output=semgrep-results.json \
             --metrics=off \
+            --disable-version-check \
+            --no-git-ignore \
+            --timeout=300 \
+            --max-memory=2000 \
             scan_workspace/ || true
       
       - name: Run Semgrep Deep Scan
@@ -89,13 +94,16 @@ jobs:
           (github.event_name == 'workflow_dispatch' && github.event.inputs.scan_type == 'deep') ||
           (github.event_name == 'repository_dispatch' && github.event.client_payload.scan_type == 'deep')
         run: |
+          # Use local rules for deep scan to avoid rate limits
           semgrep scan \
-            --config=p/security-audit \
-            --config=p/secrets \
-            --config=p/owasp-top-ten \
+            --config=backend/config/fast-scan-rules.yaml \
             --json \
             --output=semgrep-results.json \
             --metrics=off \
+            --disable-version-check \
+            --no-git-ignore \
+            --timeout=600 \
+            --max-memory=2000 \
             scan_workspace/ || true
       
       - name: Upload results to Supabase
@@ -131,19 +139,28 @@ jobs:
           # Process findings
           findings = []
           for result in results.get('results', []):
+              # Map severity
+              severity_map = {
+                  'ERROR': 'CRITICAL',
+                  'WARNING': 'HIGH',
+                  'INFO': 'MEDIUM'
+              }
+              raw_severity = result.get('extra', {}).get('severity', 'INFO').upper()
+              severity = severity_map.get(raw_severity, 'MEDIUM')
+              
               finding = {
                   'scan_id': scan_id,
                   'rule_id': result.get('check_id', 'unknown'),
-                  'severity': result.get('extra', {}).get('severity', 'INFO').upper(),
+                  'severity': severity,
+                  'title': result.get('extra', {}).get('metadata', {}).get('message', result.get('check_id', 'Unknown Issue')),
                   'message': result.get('extra', {}).get('message', 'No message'),
                   'file_path': result.get('path', 'unknown'),
                   'start_line': result.get('start', {}).get('line', 0),
                   'end_line': result.get('end', {}).get('line', 0),
                   'code_snippet': result.get('extra', {}).get('lines', ''),
+                  'category': result.get('extra', {}).get('metadata', {}).get('category', 'security'),
                   'cwe': result.get('extra', {}).get('metadata', {}).get('cwe', []),
-                  'owasp': result.get('extra', {}).get('metadata', {}).get('owasp', []),
-                  'confidence': result.get('extra', {}).get('metadata', {}).get('confidence', 'MEDIUM'),
-                  'category': result.get('extra', {}).get('metadata', {}).get('category', 'security')
+                  'owasp': result.get('extra', {}).get('metadata', {}).get('owasp', [])
               }
               findings.append(finding)
           
@@ -158,7 +175,7 @@ jobs:
               
               data = json.dumps(findings).encode('utf-8')
               req = Request(
-                  f'{supabase_url}/rest/v1/Finding',
+                  f'{supabase_url}/rest/v1/findings',
                   data=data,
                   headers=headers,
                   method='POST'
@@ -174,9 +191,11 @@ jobs:
               print("No findings to upload")
           
           # Update scan status to completed
+          from datetime import datetime
+          
           scan_update = {
               'status': 'completed',
-              'completed_at': 'now()',
+              'finished_at': datetime.utcnow().isoformat() + 'Z',
               'total_findings': len(findings),
               'critical_count': sum(1 for f in findings if f['severity'] == 'CRITICAL'),
               'high_count': sum(1 for f in findings if f['severity'] == 'HIGH'),
@@ -193,7 +212,7 @@ jobs:
           
           data = json.dumps(scan_update).encode('utf-8')
           req = Request(
-              f'{supabase_url}/rest/v1/Scan?id=eq.{scan_id}',
+              f'{supabase_url}/rest/v1/scans?id=eq.{scan_id}',
               data=data,
               headers=headers,
               method='PATCH'
