@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const scanController = require('../controllers/scan-controller-robust');
+const scanController = require('../controllers/scan-controller-github-actions'); // Use GitHub Actions controller
 const { validateFileType } = require('../middleware/fileValidation');
 const { requireAuthSupabase } = require('../middleware/auth-supabase');
 

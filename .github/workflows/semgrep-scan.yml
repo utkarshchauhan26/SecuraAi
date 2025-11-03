@@ -1,0 +1,214 @@
+name: SecuraAI Scan
+
+on:
+  repository_dispatch:
+    types: [scan-request]
+  workflow_dispatch:
+    inputs:
+      scan_id:
+        description: 'Scan ID from database'
+        required: true
+        type: string
+      project_path:
+        description: 'Path to project files'
+        required: true
+        type: string
+      scan_type:
+        description: 'Scan type (fast or deep)'
+        required: false
+        default: 'fast'
+        type: choice
+        options:
+          - fast
+          - deep
+
+jobs:
+  semgrep-scan:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Semgrep
+        run: |
+          python -m pip install --upgrade pip
+          pip install semgrep==1.88.0
+      
+      - name: Download project files from workflow dispatch
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          echo "Scan ID: ${{ github.event.inputs.scan_id }}"
+          echo "Project path: ${{ github.event.inputs.project_path }}"
+          echo "Scan type: ${{ github.event.inputs.scan_type }}"
+          mkdir -p scan_workspace
+      
+      - name: Process repository dispatch event
+        if: github.event_name == 'repository_dispatch'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          echo "Scan ID: ${{ github.event.client_payload.scan_id }}"
+          echo "Repo URL: ${{ github.event.client_payload.repo_url }}"
+          echo "Scan type: ${{ github.event.client_payload.scan_type }}"
+          mkdir -p scan_workspace
+          
+          # Clone the repository if URL provided
+          if [ -n "${{ github.event.client_payload.repo_url }}" ]; then
+            cd scan_workspace
+            git clone --depth 1 ${{ github.event.client_payload.repo_url }} project
+            cd ..
+          fi
+      
+      - name: Run Semgrep Fast Scan
+        if: |
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.scan_type == 'fast') ||
+          (github.event_name == 'repository_dispatch' && github.event.client_payload.scan_type == 'fast')
+        run: |
+          semgrep scan \
+            --config=auto \
+            --json \
+            --output=semgrep-results.json \
+            --metrics=off \
+            scan_workspace/ || true
+      
+      - name: Run Semgrep Deep Scan
+        if: |
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.scan_type == 'deep') ||
+          (github.event_name == 'repository_dispatch' && github.event.client_payload.scan_type == 'deep')
+        run: |
+          semgrep scan \
+            --config=p/security-audit \
+            --config=p/secrets \
+            --config=p/owasp-top-ten \
+            --json \
+            --output=semgrep-results.json \
+            --metrics=off \
+            scan_workspace/ || true
+      
+      - name: Upload results to Supabase
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SCAN_ID: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.scan_id || github.event.client_payload.scan_id }}
+        run: |
+          python3 << 'EOF'
+          import json
+          import os
+          import sys
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError
+          
+          # Read Semgrep results
+          try:
+              with open('semgrep-results.json', 'r') as f:
+                  results = json.load(f)
+          except FileNotFoundError:
+              print("No Semgrep results file found")
+              results = {"results": [], "errors": []}
+          
+          scan_id = os.environ.get('SCAN_ID')
+          supabase_url = os.environ.get('SUPABASE_URL')
+          supabase_key = os.environ.get('SUPABASE_SERVICE_KEY')
+          
+          if not all([scan_id, supabase_url, supabase_key]):
+              print("Missing required environment variables")
+              sys.exit(1)
+          
+          # Process findings
+          findings = []
+          for result in results.get('results', []):
+              finding = {
+                  'scan_id': scan_id,
+                  'rule_id': result.get('check_id', 'unknown'),
+                  'severity': result.get('extra', {}).get('severity', 'INFO').upper(),
+                  'message': result.get('extra', {}).get('message', 'No message'),
+                  'file_path': result.get('path', 'unknown'),
+                  'start_line': result.get('start', {}).get('line', 0),
+                  'end_line': result.get('end', {}).get('line', 0),
+                  'code_snippet': result.get('extra', {}).get('lines', ''),
+                  'cwe': result.get('extra', {}).get('metadata', {}).get('cwe', []),
+                  'owasp': result.get('extra', {}).get('metadata', {}).get('owasp', []),
+                  'confidence': result.get('extra', {}).get('metadata', {}).get('confidence', 'MEDIUM'),
+                  'category': result.get('extra', {}).get('metadata', {}).get('category', 'security')
+              }
+              findings.append(finding)
+          
+          # Upload findings to Supabase
+          if findings:
+              headers = {
+                  'apikey': supabase_key,
+                  'Authorization': f'Bearer {supabase_key}',
+                  'Content-Type': 'application/json',
+                  'Prefer': 'return=minimal'
+              }
+              
+              data = json.dumps(findings).encode('utf-8')
+              req = Request(
+                  f'{supabase_url}/rest/v1/Finding',
+                  data=data,
+                  headers=headers,
+                  method='POST'
+              )
+              
+              try:
+                  with urlopen(req) as response:
+                      print(f"✅ Uploaded {len(findings)} findings to Supabase")
+              except HTTPError as e:
+                  print(f"❌ Failed to upload findings: {e.code} {e.reason}")
+                  sys.exit(1)
+          else:
+              print("No findings to upload")
+          
+          # Update scan status to completed
+          scan_update = {
+              'status': 'completed',
+              'completed_at': 'now()',
+              'total_findings': len(findings),
+              'critical_count': sum(1 for f in findings if f['severity'] == 'CRITICAL'),
+              'high_count': sum(1 for f in findings if f['severity'] == 'HIGH'),
+              'medium_count': sum(1 for f in findings if f['severity'] == 'MEDIUM'),
+              'low_count': sum(1 for f in findings if f['severity'] == 'LOW')
+          }
+          
+          headers = {
+              'apikey': supabase_key,
+              'Authorization': f'Bearer {supabase_key}',
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal'
+          }
+          
+          data = json.dumps(scan_update).encode('utf-8')
+          req = Request(
+              f'{supabase_url}/rest/v1/Scan?id=eq.{scan_id}',
+              data=data,
+              headers=headers,
+              method='PATCH'
+          )
+          
+          try:
+              with urlopen(req) as response:
+                  print(f"✅ Updated scan {scan_id} to completed")
+          except HTTPError as e:
+              print(f"❌ Failed to update scan: {e.code} {e.reason}")
+              sys.exit(1)
+          EOF
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf scan_workspace
+          rm -f semgrep-results.json
