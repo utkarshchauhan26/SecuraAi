@@ -42,7 +42,7 @@ const scanRepository = async (req, res) => {
 
     // Create project record
     const { data: project, error: projectError } = await supabase
-      .from('Project')
+      .from('projects')
       .insert({
         id: uuidv4(),
         name: repoName,
@@ -63,7 +63,7 @@ const scanRepository = async (req, res) => {
     // Create scan record
     const scanId = uuidv4();
     const { data: scan, error: scanError } = await supabase
-      .from('Scan')
+      .from('scans')
       .insert({
         id: scanId,
         project_id: project.id,
@@ -110,7 +110,7 @@ const scanRepository = async (req, res) => {
     } catch (triggerError) {
       // Update scan to failed
       await supabase
-        .from('Scan')
+        .from('scans')
         .update({
           status: 'failed',
           completed_at: new Date().toISOString(),
@@ -163,7 +163,7 @@ const scanFile = async (req, res) => {
 
     // Create project record
     const { data: project, error: projectError } = await supabase
-      .from('Project')
+      .from('projects')
       .insert({
         id: uuidv4(),
         name: req.file.originalname.replace(/\.[^/.]+$/, ""),
@@ -184,7 +184,7 @@ const scanFile = async (req, res) => {
     // Create scan record
     const scanId = uuidv4();
     const { data: scan, error: scanError } = await supabase
-      .from('Scan')
+      .from('scans')
       .insert({
         id: scanId,
         project_id: project.id,
@@ -243,8 +243,8 @@ const getScanStatus = async (req, res) => {
     const userId = req.user?.id;
 
     const { data: scan, error } = await supabase
-      .from('Scan')
-      .select('*, Project(*)')
+      .from('scans')
+      .select('*, projects(*)')
       .eq('id', scanId)
       .eq('user_id', userId)
       .single();
@@ -270,8 +270,8 @@ const getScanStatus = async (req, res) => {
         mediumCount: scan.medium_count || 0,
         lowCount: scan.low_count || 0,
         project: {
-          id: scan.Project.id,
-          name: scan.Project.name
+          id: scan.projects.id,
+          name: scan.projects.name
         }
       }
     });
@@ -293,8 +293,8 @@ const getScanDetails = async (req, res) => {
     const userId = req.user?.id;
 
     const { data: scan, error: scanError } = await supabase
-      .from('Scan')
-      .select('*, Project(*)')
+      .from('scans')
+      .select('*, projects(*)')
       .eq('id', scanId)
       .eq('user_id', userId)
       .single();
@@ -307,7 +307,7 @@ const getScanDetails = async (req, res) => {
     }
 
     const { data: findings, error: findingsError } = await supabase
-      .from('Finding')
+      .from('findings')
       .select('*')
       .eq('scan_id', scanId)
       .order('severity', { ascending: false });
@@ -328,9 +328,9 @@ const getScanDetails = async (req, res) => {
           totalFindings: scan.total_findings || 0
         },
         project: {
-          id: scan.Project.id,
-          name: scan.Project.name,
-          description: scan.Project.description
+          id: scan.projects.id,
+          name: scan.projects.name,
+          description: scan.projects.description
         },
         findings: findings || []
       }
@@ -353,8 +353,8 @@ const getUserScans = async (req, res) => {
     const { limit = 20, offset = 0 } = req.query;
 
     const { data: scans, error } = await supabase
-      .from('Scan')
-      .select('*, Project(name)')
+      .from('scans')
+      .select('*, projects(name)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
@@ -371,7 +371,7 @@ const getUserScans = async (req, res) => {
       success: true,
       data: scans.map(scan => ({
         id: scan.id,
-        projectName: scan.Project?.name || 'Unknown',
+        projectName: scan.projects?.name || 'Unknown',
         status: scan.status,
         type: scan.type,
         totalFindings: scan.total_findings || 0,
@@ -397,7 +397,7 @@ const getScanProgress = async (req, res) => {
     const userId = req.user?.id;
 
     const { data: scan, error } = await supabase
-      .from('Scan')
+      .from('scans')
       .select('*')
       .eq('id', scanId)
       .eq('user_id', userId)
