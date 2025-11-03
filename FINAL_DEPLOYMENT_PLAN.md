@@ -210,7 +210,7 @@ Click "Deploy" and wait for build to complete (~2-3 minutes)
 3. Connect GitHub repository: `utkarshchauhan26/SecuraAi`
 4. **Root Directory**: `backend`
 5. **Runtime**: Node
-6. **Build Command**: `npm install`
+6. **Build Command**: `pnpm install --no-frozen-lockfile`
 7. **Start Command**: `node server.js`
 
 #### 2.2 Configure Environment Variables
@@ -394,6 +394,13 @@ Your deployment is successful when:
 Error: Expected ';', '}' or <eof>
 ```
 **Fix**: Duplicate "use client" - already fixed with `git restore`
+
+### Backend build fails on Render (pnpm lockfile):
+```
+ERR_PNPM_OUTDATED_LOCKFILE Cannot install with "frozen-lockfile"
+ERR_PNPM_NO_SCRIPT Missing script: build
+```
+**Fix**: Use `pnpm install --no-frozen-lockfile` and add build script
 
 ### Backend returns 500:
 ```
