@@ -329,6 +329,219 @@ Keep explanations practical, actionable, and avoid security jargon where possibl
     // For now, return 0
     return 0;
   }
+
+  /**
+   * Generate AI-powered project summary and recommendations
+   * @param {Object} scan - Scan data
+   * @param {Array} findings - Vulnerability findings
+   * @param {Object} scores - Smart Score and EU AI Code Score
+   * @returns {Promise<Object>} - Project summary with recommendations
+   */
+  async generateProjectSummary(scan, findings = [], scores = null) {
+    if (!this.genAI) {
+      return {
+        summary: 'The overall codebase appears to be well-structured. AI-powered analysis is currently unavailable.',
+        strengths: ['Project structure is organized', 'Code follows common patterns'],
+        gaps: ['Enable AI analysis for deeper insights'],
+        recommendations: [
+          'Continue regular security scanning',
+          'Implement automated testing',
+          'Add comprehensive documentation',
+          'Review security best practices',
+          'Conduct periodic code reviews'
+        ],
+        cached: false
+      };
+    }
+
+    // Create cache key
+    const cacheKey = this._createCacheKey(
+      `project_${scan.id}_${findings.length}`,
+      'project_summary'
+    );
+
+    // Check cache
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      console.log('Using cached project summary');
+      return { ...cached, cached: true };
+    }
+
+    // Build comprehensive prompt
+    const prompt = this._createProjectSummaryPrompt(scan, findings, scores);
+
+    try {
+      const result = await this.model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      const summary = this._parseProjectSummary(text);
+      
+      // Cache for 1 hour
+      this.cache.set(cacheKey, summary, 3600);
+
+      return { ...summary, cached: false };
+    } catch (error) {
+      console.error('Error generating project summary:', error);
+      return {
+        summary: 'Error generating AI summary. The project has been scanned successfully.',
+        strengths: ['Security scan completed'],
+        gaps: ['AI analysis unavailable'],
+        recommendations: [
+          'Review all identified vulnerabilities',
+          'Fix critical and high-severity issues first',
+          'Implement security best practices',
+          'Add automated security scanning to CI/CD',
+          'Maintain regular security audits'
+        ],
+        cached: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Create comprehensive prompt for project summary
+   */
+  _createProjectSummaryPrompt(scan, findings, scores) {
+    const projectName = scan.project?.name || 'Project';
+    const filesScanned = scan.files_scanned || scan.filesScanned || 0;
+    const linesScanned = scan.lines_scanned || scan.linesScanned || 0;
+    const criticalCount = findings.filter(f => f.severity === 'CRITICAL').length;
+    const highCount = findings.filter(f => f.severity === 'HIGH').length;
+    const mediumCount = findings.filter(f => f.severity === 'MEDIUM').length;
+    const lowCount = findings.filter(f => f.severity === 'LOW').length;
+
+    const smartScore = scores?.smartScore?.score || 'N/A';
+    const euScore = scores?.euAIScore?.score || 'N/A';
+
+    return `You are an expert software security architect and AI code reviewer. Analyze this project and provide a comprehensive, professional assessment.
+
+**PROJECT OVERVIEW**
+- Name: ${projectName}
+- Files Scanned: ${filesScanned}
+- Lines of Code: ${linesScanned}
+- Vulnerabilities Found: ${findings.length}
+  - Critical: ${criticalCount}
+  - High: ${highCount}
+  - Medium: ${mediumCount}
+  - Low: ${lowCount}
+- SecuraAI Smart Score™: ${smartScore}/100
+- Europe AI Code Score: ${euScore}/100
+
+**YOUR TASK**
+Provide a professional, balanced assessment of this codebase in the following format:
+
+1. OVERALL ASSESSMENT (2-3 sentences)
+Write a clear, professional summary of the codebase quality. Be encouraging if security is good, constructive if issues exist.
+
+2. KEY STRENGTHS (3-4 points)
+List what the project does well (e.g., "Good separation of concerns", "Excellent modularity and naming conventions", "Well-documented API endpoints").
+
+3. AREAS FOR IMPROVEMENT (2-3 points)
+Identify gaps (e.g., "Missing input validation in 3 endpoints", "Hardcoded credentials detected", "Improve error handling").
+
+4. TOP 5 RECOMMENDATIONS (prioritized action items)
+Provide specific, actionable recommendations such as:
+- "Add structured logging using Winston or Pino"
+- "Improve .env variable validation and documentation"
+- "Implement AI ethics checklist for model training"
+- "Add CHANGELOG.md with data usage summary"
+- "Run weekly automated security scans"
+
+Keep your tone professional, educational, and supportive. Focus on practical advice that helps developers improve security and code quality.
+
+**RESPONSE FORMAT**
+Return your response in this exact format:
+
+ASSESSMENT:
+[Your 2-3 sentence assessment]
+
+STRENGTHS:
+- [Strength 1]
+- [Strength 2]
+- [Strength 3]
+
+GAPS:
+- [Gap 1]
+- [Gap 2]
+- [Gap 3]
+
+RECOMMENDATIONS:
+1. [Recommendation 1]
+2. [Recommendation 2]
+3. [Recommendation 3]
+4. [Recommendation 4]
+5. [Recommendation 5]`;
+  }
+
+  /**
+   * Parse Gemini's project summary response
+   */
+  _parseProjectSummary(text) {
+    const result = {
+      summary: '',
+      strengths: [],
+      gaps: [],
+      recommendations: []
+    };
+
+    // Extract assessment
+    const assessmentMatch = text.match(/ASSESSMENT:\s*([\s\S]*?)(?=STRENGTHS:|$)/i);
+    if (assessmentMatch) {
+      result.summary = assessmentMatch[1].trim().replace(/\n+/g, ' ');
+    }
+
+    // Extract strengths
+    const strengthsMatch = text.match(/STRENGTHS:\s*([\s\S]*?)(?=GAPS:|$)/i);
+    if (strengthsMatch) {
+      result.strengths = strengthsMatch[1]
+        .split(/\n/)
+        .map(line => line.replace(/^[\s\-\*]+/, '').trim())
+        .filter(line => line.length > 0);
+    }
+
+    // Extract gaps
+    const gapsMatch = text.match(/GAPS:\s*([\s\S]*?)(?=RECOMMENDATIONS:|$)/i);
+    if (gapsMatch) {
+      result.gaps = gapsMatch[1]
+        .split(/\n/)
+        .map(line => line.replace(/^[\s\-\*]+/, '').trim())
+        .filter(line => line.length > 0);
+    }
+
+    // Extract recommendations
+    const recsMatch = text.match(/RECOMMENDATIONS:\s*([\s\S]*?)$/i);
+    if (recsMatch) {
+      result.recommendations = recsMatch[1]
+        .split(/\n/)
+        .map(line => line.replace(/^[\s\d\.\-\*]+/, '').trim())
+        .filter(line => line.length > 0)
+        .slice(0, 5); // Top 5
+    }
+
+    // Fallback if parsing failed
+    if (!result.summary) {
+      result.summary = 'The overall codebase demonstrates good structure and organization. Minor security improvements recommended.';
+    }
+    if (result.strengths.length === 0) {
+      result.strengths = ['Code organization is clear', 'Project structure follows best practices'];
+    }
+    if (result.gaps.length === 0) {
+      result.gaps = ['Some security vulnerabilities detected', 'Documentation could be improved'];
+    }
+    if (result.recommendations.length === 0) {
+      result.recommendations = [
+        'Address all critical and high-severity vulnerabilities',
+        'Add comprehensive unit tests',
+        'Implement structured logging',
+        'Document all API endpoints',
+        'Set up automated security scanning in CI/CD'
+      ];
+    }
+
+    return result;
+  }
 }
 
 module.exports = new AIService();

@@ -1,12 +1,11 @@
 /**
  * Report Controller
  * Handles PDF report generation and scan report retrieval
- * Now uses OPTIMIZED PDF service - NO BLANK PAGES
+ * Now uses AI-ENHANCED PDF service with Smart Score & EU AI Code Score
  */
 
-// Use optimized PDF service for clean, professional reports
-const OptimizedPDFService = require('../services/pdf-report.service');
-const pdfService = new OptimizedPDFService();
+// Use AI-enhanced PDF service for compliance reports
+const pdfService = require('../services/pdf-report-ai-enhanced.service');
 
 const { createClient } = require('@supabase/supabase-js');
 

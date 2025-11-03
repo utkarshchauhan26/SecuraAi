@@ -10,8 +10,8 @@ import { GlobalScanProgress } from "@/components/global-scan-progress"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "SecuraAI",
-  description: "Scan your code. Fix vulnerabilities. Build securely.",
+  title: "SecuraAI - AI-Powered Security Scanner",
+  description: "Scan your code. Fix vulnerabilities. Build securely. AI-powered security auditing with EU AI Code compliance.",
   generator: "v0.app",
 }
 
