@@ -8,6 +8,9 @@ const routes = require('./routes');
 // Initialize express app
 const app = express();
 const PORT = process.env.PORT || 5000;
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
 
 // Middleware
 app.use(cors({
