@@ -132,9 +132,20 @@ jobs:
           supabase_url = os.environ.get('SUPABASE_URL')
           supabase_key = os.environ.get('SUPABASE_SERVICE_KEY')
           
+          print(f"🔍 Environment check:")
+          print(f"  SCAN_ID: {'✅ Set' if scan_id else '❌ Missing'}")
+          print(f"  SUPABASE_URL: {'✅ Set' if supabase_url else '❌ Missing'}")
+          print(f"  SUPABASE_SERVICE_KEY: {'✅ Set' if supabase_key else '❌ Missing'}")
+          
           if not all([scan_id, supabase_url, supabase_key]):
-              print("Missing required environment variables")
+              print("❌ Missing required environment variables")
+              print(f"   SCAN_ID: {scan_id}")
+              print(f"   SUPABASE_URL: {supabase_url[:30] + '...' if supabase_url else 'None'}")
+              print(f"   SUPABASE_SERVICE_KEY: {supabase_key[:20] + '...' if supabase_key else 'None'}")
               sys.exit(1)
+          
+          print(f"✅ All environment variables set")
+          print(f"   Processing scan: {scan_id}")
           
           # Process findings
           findings = []
