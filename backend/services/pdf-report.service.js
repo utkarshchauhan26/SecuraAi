@@ -101,15 +101,41 @@ class OptimizedPDFService {
         return (order[b.severity?.toUpperCase()] || 0) - (order[a.severity?.toUpperCase()] || 0);
       });
 
-      // Build report sections without unnecessary page breaks
+      // Build report sections conditionally based on findings
       this._addCoverPage(doc, scan, metrics);
-      this._addExecutiveSummary(doc, scan, metrics);
-      this._addVulnerabilityChart(doc, metrics);
-      this._addTopFindings(doc, findings.slice(0, 5));
-      this._addSecretsSection(doc, findings);
-      this._addBestPractices(doc);
-      this._addRecommendations(doc, metrics);
-      this._addRemediationExamples(doc);
+      
+      // If no findings, create simple 1-page summary
+      if (metrics.total === 0) {
+        this._addNoFindingsSummary(doc, scan, metrics);
+      } else {
+        // Only add sections if we have findings
+        this._addExecutiveSummary(doc, scan, metrics);
+        this._addVulnerabilityChart(doc, metrics);
+        
+        // Only show top findings if we have any
+        if (findings.length > 0) {
+          this._addTopFindings(doc, findings.slice(0, 5));
+        }
+        
+        // Only show secrets section if we have secret-related findings
+        const secretFindings = findings.filter(f => 
+          f.checkId?.includes('secret') || 
+          f.checkId?.includes('password') || 
+          f.message?.toLowerCase().includes('secret')
+        );
+        if (secretFindings.length > 0) {
+          this._addSecretsSection(doc, secretFindings);
+        }
+        
+        // Only add recommendations if risk score is above threshold
+        if (metrics.riskScore > 20) {
+          this._addRecommendations(doc, metrics);
+          this._addRemediationExamples(doc);
+        }
+        
+        // Best practices always included (but concise)
+        this._addBestPractices(doc);
+      }
       
       this._addFooters(doc, scan);
 
@@ -177,6 +203,87 @@ class OptimizedPDFService {
       return true;
     }
     return false;
+  }
+
+  /**
+   * NO FINDINGS SUMMARY (1 page only)
+   */
+  _addNoFindingsSummary(doc, scan, metrics) {
+    doc.addPage();
+    
+    // Success banner
+    const bannerY = 100;
+    doc.roundedRect(this.margin, bannerY, this.contentWidth, 120, 10)
+       .fillAndStroke('#dcfce7', '#16a34a');
+    
+    // Success icon (checkmark circle)
+    doc.circle(this.pageWidth / 2, bannerY + 60, 30)
+       .fillAndStroke(this.colors.success, this.colors.success);
+    
+    doc.fontSize(40)
+       .fillColor(this.colors.white)
+       .font('Helvetica-Bold')
+       .text('✓', 0, bannerY + 35, { align: 'center' });
+    
+    // Success message
+    doc.moveDown(6);
+    doc.fontSize(28)
+       .fillColor(this.colors.success)
+       .font('Helvetica-Bold')
+       .text('All Clear!', 0, bannerY + 130, { align: 'center', width: this.pageWidth });
+    
+    doc.fontSize(16)
+       .fillColor(this.colors.text)
+       .font('Helvetica')
+       .text('No vulnerabilities detected in your codebase', 0, bannerY + 170, { 
+         align: 'center',
+         width: this.pageWidth
+       });
+    
+    // Summary stats
+    const statsY = bannerY + 240;
+    doc.fontSize(13)
+       .fillColor(this.colors.textLight)
+       .font('Helvetica');
+    
+    const stats = [
+      { label: 'Files Scanned', value: metrics.filesScanned.toLocaleString() },
+      { label: 'Scan Duration', value: metrics.duration },
+      { label: 'Security Grade', value: metrics.grade },
+      { label: 'Risk Score', value: `${metrics.riskScore}/100` }
+    ];
+    
+    const colWidth = this.contentWidth / 4;
+    stats.forEach((stat, i) => {
+      const x = this.margin + (i * colWidth);
+      doc.fillColor(this.colors.textLight)
+         .fontSize(11)
+         .text(stat.label, x, statsY, { width: colWidth, align: 'center' });
+      
+      doc.fillColor(this.colors.success)
+         .font('Helvetica-Bold')
+         .fontSize(20)
+         .text(stat.value, x, statsY + 25, { width: colWidth, align: 'center' });
+    });
+    
+    // Best practices reminder
+    doc.moveDown(4);
+    this._sectionHeader(doc, 'Keep Your Code Secure');
+    
+    doc.fontSize(12)
+       .fillColor(this.colors.text)
+       .font('Helvetica')
+       .list([
+         'Continue following secure coding practices',
+         'Regularly update dependencies to patch known vulnerabilities',
+         'Run security scans before each deployment',
+         'Review and audit third-party libraries',
+         'Enable automated security monitoring'
+       ], this.margin, doc.y + 10, {
+         bulletRadius: 3,
+         textIndent: 20,
+         width: this.contentWidth
+       });
   }
 
   /**
@@ -513,7 +620,7 @@ class OptimizedPDFService {
   }
 
   /**
-   * BEST PRACTICES
+   * BEST PRACTICES (Compact version)
    */
   _addBestPractices(doc) {
     this._sectionHeader(doc, '🤖 AI-Powered Security Best Practices');
@@ -524,46 +631,42 @@ class OptimizedPDFService {
     const practices = [
       {
         title: '1. API Security',
-        items: ['Request timeouts (30s)', 'Rate limiting (100 req/min)', 'Input validation', 'Authentication on all endpoints']
+        items: ['Request timeouts (30s)', 'Rate limiting', 'Input validation', 'Auth on all endpoints']
       },
       {
-        title: '2. Authentication & Sessions',
-        items: ['Secure JWT tokens (RS256)', 'Session expiration (15 min idle)', 'Strong passwords (12+ chars)', 'Multi-factor authentication']
+        title: '2. Authentication',
+        items: ['Secure JWT (RS256)', 'Session expiry (15min)', 'Strong passwords', 'MFA enabled']
       },
       {
         title: '3. Data Validation',
-        items: ['Server-side validation', 'Parameterized SQL queries', 'XSS prevention', 'CSP headers']
-      },
-      {
-        title: '4. Error Handling',
-        items: ['No stack traces in production', 'Security event logging', 'Centralized error handling', 'Structured logging']
+        items: ['Server-side validation', 'Parameterized queries', 'XSS prevention', 'CSP headers']
       }
     ];
 
     practices.forEach(practice => {
-      this._checkNewPage(doc, 100);
+      this._checkNewPage(doc, 80);
       
-      doc.fontSize(14).fillColor(this.colors.primary).font('Helvetica-Bold');
-      doc.text(practice.title, { lineGap: 4 });
+      doc.fontSize(13).fillColor(this.colors.primary).font('Helvetica-Bold');
+      doc.text(practice.title, { lineGap: 3 });
       
-      doc.fontSize(12).fillColor(this.colors.text).font('Helvetica');
+      doc.fontSize(11).fillColor(this.colors.text).font('Helvetica');
       practice.items.forEach(item => {
-        doc.text(`  • ${item}`, { lineGap: 4 });
+        doc.text(`  • ${item}`, { lineGap: 2 });
       });
-      doc.moveDown(1);
+      doc.moveDown(0.8);
     });
 
     this._checkNewPage(doc);
   }
 
   /**
-   * RECOMMENDATIONS
+   * RECOMMENDATIONS (Compact version)
    */
   _addRecommendations(doc, metrics) {
     this._sectionHeader(doc, '💡 AI Recommendations');
 
     // Short-term
-    doc.fontSize(14).fillColor(this.colors.text).font('Helvetica-Bold');
+    doc.fontSize(13).fillColor(this.colors.text).font('Helvetica-Bold');
     doc.text('Short-Term Fixes (1-2 Weeks)');
     doc.moveDown(0.5);
 
@@ -571,35 +674,32 @@ class OptimizedPDFService {
       `Fix ${metrics.CRITICAL + metrics.HIGH} critical/high vulnerabilities`,
       'Rotate exposed credentials',
       'Add input validation',
-      'Enable security headers (CSP, HSTS)',
       'Update vulnerable dependencies'
     ];
 
-    doc.fontSize(12).fillColor(this.colors.text).font('Helvetica');
+    doc.fontSize(11).fillColor(this.colors.text).font('Helvetica');
     shortTerm.forEach(item => {
-      doc.text(`  ✓ ${item}`, { lineGap: 5 });
+      doc.text(`  ✓ ${item}`, { lineGap: 3 });
     });
 
-    doc.moveDown(1.5);
-    this._checkNewPage(doc, 100);
+    doc.moveDown(1);
+    this._checkNewPage(doc, 80);
 
     // Long-term
-    doc.fontSize(14).fillColor(this.colors.text).font('Helvetica-Bold');
+    doc.fontSize(13).fillColor(this.colors.text).font('Helvetica-Bold');
     doc.text('Long-Term Improvements (1-3 Months)');
     doc.moveDown(0.5);
 
     const longTerm = [
-      'Implement logging and monitoring',
-      'Automated security in CI/CD',
-      'Security training for team',
-      'Code review process',
-      'Deploy WAF',
-      'Secrets management solution'
+      'Implement automated security testing (CI/CD)',
+      'Security training for development team',
+      'Regular dependency audits',
+      'Penetration testing'
     ];
 
-    doc.fontSize(12).fillColor(this.colors.text).font('Helvetica');
+    doc.fontSize(11).fillColor(this.colors.text).font('Helvetica');
     longTerm.forEach(item => {
-      doc.text(`  ⏰ ${item}`, { lineGap: 5 });
+      doc.text(`  ✓ ${item}`, { lineGap: 3 });
     });
 
     this._checkNewPage(doc);
