@@ -15,7 +15,13 @@ async function requireAuthSupabase(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
     
+    console.log('🔐 Auth check - Headers:', {
+      hasAuth: !!authHeader,
+      authPreview: authHeader ? authHeader.substring(0, 20) + '...' : 'none'
+    });
+    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('❌ Missing or invalid authorization header');
       return res.status(401).json({
         success: false,
         message: 'Missing or invalid authorization header'
@@ -28,13 +34,26 @@ async function requireAuthSupabase(req, res, next) {
     const jwt = require('jsonwebtoken');
     const nextAuthSecret = process.env.NEXTAUTH_SECRET;
     
+    console.log('🔑 Verifying JWT token...', {
+      hasSecret: !!nextAuthSecret,
+      secretLength: nextAuthSecret?.length,
+      tokenLength: token.length
+    });
+    
     let decoded;
     try {
       decoded = jwt.verify(token, nextAuthSecret);
+      console.log('✅ Token verified successfully:', {
+        sub: decoded.sub,
+        email: decoded.email,
+        userId: decoded.userId
+      });
     } catch (err) {
+      console.log('❌ Token verification failed:', err.message);
       return res.status(401).json({
         success: false,
-        message: 'Invalid or expired token'
+        message: 'Invalid or expired token',
+        error: err.message
       });
     }
 
