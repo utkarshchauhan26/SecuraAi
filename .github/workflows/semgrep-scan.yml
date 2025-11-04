@@ -80,7 +80,8 @@ jobs:
           supabase_key = os.environ.get('SUPABASE_SERVICE_KEY')
           
           scan_update = {
-              'status': 'running'
+              'status': 'running',
+              'progress': 10
           }
           
           headers = {
@@ -260,6 +261,9 @@ jobs:
           scan_update = {
               'status': 'completed',
               'finished_at': datetime.utcnow().isoformat() + 'Z',
+              'progress': 100,
+              'file_count': len(set(f['file_path'] for f in findings)) if findings else 0,
+              'processed_files': len(set(f['file_path'] for f in findings)) if findings else 0,
               'total_findings': len(findings),
               'critical_count': sum(1 for f in findings if f['severity'] == 'CRITICAL'),
               'high_count': sum(1 for f in findings if f['severity'] == 'HIGH'),
