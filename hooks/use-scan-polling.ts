@@ -53,68 +53,50 @@ export function useScanPolling({
       setLoading(true)
       setError(null)
 
-      // Try progress endpoint first for active scans, fallback to status
-      let response;
-      try {
-        response = await apiClient.get<ApiResponse<any>>(`/scans/progress/${scanId}`);
-        
-        // If progress data exists, transform it to ScanStatus format
-        if (response.success && response.data) {
-          const progressData = response.data;
-          response.data = {
-            id: progressData.scanId,
-            status: progressData.stage === 'completed' ? 'COMPLETED' : 
-                   progressData.stage === 'failed' ? 'FAILED' : 'RUNNING',
-            progress: progressData.percentage,
-            file_count: progressData.totalFiles,
-            findings_count: progressData.findingsCount,
-            current_file: progressData.currentFile,
-            processed_files: progressData.processedFiles,
-            elapsed_time: progressData.elapsed,
-            estimated_remaining: progressData.estimatedTimeRemaining
-          } as ScanStatus;
-        }
-      } catch (progressError) {
-        // Fallback to regular status endpoint
-        response = await apiClient.get<ApiResponse<ScanStatus>>(`/scans/status/${scanId}`);
-      }
+      // Use status endpoint which now has all progress data
+      const response = await apiClient.get<ApiResponse<any>>(`/scans/status/${scanId}`);
       
       if (!mountedRef.current) return
 
       if (response.success && response.data) {
-        let status = response.data
+        const rawData = response.data;
         
-        console.log('🔍 Raw API response status:', status.status, typeof status.status)
+        console.log('📡 Raw scan data from backend:', rawData);
         
-        // Normalize status to uppercase for consistency
-        if (status.status) {
-          const normalizedStatus = status.status.toUpperCase() as ScanStatus['status']
-          status = {
-            ...status,
-            status: normalizedStatus
-          }
-          console.log('✅ Normalized status:', status.status)
-        }
+        // Map backend response to ScanStatus interface
+        const status: ScanStatus = {
+          id: rawData.id,
+          status: rawData.status, // Already uppercase from backend
+          progress: rawData.progress,
+          file_count: rawData.file_count,
+          findings_count: rawData.findings_count,
+          current_file: rawData.current_file,
+          processed_files: rawData.processed_files,
+          started_at: rawData.started_at,
+          finished_at: rawData.finished_at,
+          elapsed_time: rawData.elapsed_time,
+          estimated_remaining: rawData.estimated_remaining
+        };
         
-        console.log('🔎 Final scan status object:', {
-          id: status.id,
+        console.log('� Mapped scan status:', {
+          id: status.id?.substring(0, 8),
           status: status.status,
-          total_findings: status.findings_count,
-          finished_at: status.finished_at
-        })
+          progress: status.progress,
+          findings: status.findings_count
+        });
         
         setScanStatus(status)
 
-        // Stop polling if scan is complete
+        // Stop polling if scan is complete or failed
         if (status.status === 'COMPLETED') {
-          console.log('🎉 Scan COMPLETED - stopping polling')
+          console.log('✅ Scan COMPLETED - stopping polling');
           if (intervalRef.current) {
             clearInterval(intervalRef.current)
             intervalRef.current = null
           }
           onComplete?.(status)
         } else if (status.status === 'FAILED') {
-          console.log('❌ Scan FAILED - stopping polling')
+          console.log('❌ Scan FAILED - stopping polling');
           if (intervalRef.current) {
             clearInterval(intervalRef.current)
             intervalRef.current = null
@@ -123,7 +105,7 @@ export function useScanPolling({
           setError(errorMsg)
           onError?.(errorMsg)
         } else {
-          console.log('⏳ Scan still in progress:', status.status)
+          console.log(`⏳ Scan in progress: ${status.status} (${status.progress}%)`);
         }
       } else {
         throw new Error(response.message || 'Failed to fetch scan status')
@@ -132,6 +114,7 @@ export function useScanPolling({
       if (!mountedRef.current) return
       
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      console.error('❌ Polling error:', errorMessage);
       setError(errorMessage)
       onError?.(errorMessage)
       

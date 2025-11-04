@@ -228,13 +228,22 @@ const scanFile = async (req, res) => {
 };
 
 /**
- * Get scan status
+ * Get scan status - READS DIRECTLY FROM SUPABASE (NO CACHE)
  */
 const getScanStatus = async (req, res) => {
   try {
     const { scanId } = req.params;
     const userId = req.user?.id;
+    const userEmail = req.user?.email;
 
+    console.log(`🔍 getScanStatus called - scanId: ${scanId}, userId: ${userId}, email: ${userEmail}`);
+
+    // Add cache control headers to prevent caching
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    // Query Supabase directly - NO in-memory cache
     const { data: scan, error } = await supabase
       .from('scans')
       .select('*, projects(*)')
@@ -243,30 +252,74 @@ const getScanStatus = async (req, res) => {
       .single();
 
     if (error || !scan) {
+      console.log(`⚠️ Scan not found: ${scanId} for user ${userId}`);
+      console.log(`   Error:`, error?.message, error?.code);
+      
+      // Try to fetch without user filter to debug
+      const { data: debugScan, error: debugError } = await supabase
+        .from('scans')
+        .select('id, user_id, user_email, status')
+        .eq('id', scanId)
+        .single();
+      
+      if (debugScan) {
+        console.log(`   🔍 Scan exists but user_id mismatch!`);
+        console.log(`      Scan user_id: ${debugScan.user_id}`);
+        console.log(`      Scan user_email: ${debugScan.user_email}`);
+        console.log(`      Request user_id: ${userId}`);
+        console.log(`      Request user_email: ${userEmail}`);
+      } else {
+        console.log(`   Scan does not exist in database`);
+      }
+      
       return res.status(404).json({
         success: false,
         message: 'Scan not found'
       });
     }
 
+    // Normalize status to UPPERCASE for frontend
+    const normalizedStatus = (scan.status || 'queued').toUpperCase();
+
+    // Calculate progress percentage
+    let progress = scan.progress || 0;
+    if (!progress && normalizedStatus === 'COMPLETED') {
+      progress = 100;
+    } else if (!progress && normalizedStatus === 'RUNNING') {
+      // Calculate from processed_files if available
+      if (scan.file_count > 0 && scan.processed_files >= 0) {
+        progress = Math.round((scan.processed_files / scan.file_count) * 100);
+      } else {
+        progress = 30; // Default for running scans
+      }
+    }
+
+    const responseData = {
+      id: scan.id,
+      status: normalizedStatus,
+      progress,
+      file_count: scan.file_count || 0,
+      processed_files: scan.processed_files || 0,
+      current_file: scan.current_file,
+      findings_count: scan.total_findings || 0,
+      started_at: scan.started_at,
+      finished_at: scan.finished_at,
+      report_url: scan.report_url,
+      criticalCount: scan.critical_count || 0,
+      highCount: scan.high_count || 0,
+      mediumCount: scan.medium_count || 0,
+      lowCount: scan.low_count || 0,
+      project: {
+        id: scan.projects.id,
+        name: scan.projects.name
+      }
+    };
+
+    console.log(`📊 Scan status for ${scanId}: ${normalizedStatus} (${progress}%) - Findings: ${responseData.findings_count}`);
+
     return res.json({
       success: true,
-      data: {
-        id: scan.id,
-        status: scan.status,
-        createdAt: scan.created_at,
-        startedAt: scan.started_at,
-        finishedAt: scan.finished_at,
-        totalFindings: scan.total_findings || 0,
-        criticalCount: scan.critical_count || 0,
-        highCount: scan.high_count || 0,
-        mediumCount: scan.medium_count || 0,
-        lowCount: scan.low_count || 0,
-        project: {
-          id: scan.projects.id,
-          name: scan.projects.name
-        }
-      }
+      data: responseData
     });
   } catch (error) {
     console.error('Get scan status error:', error);
@@ -339,7 +392,7 @@ const getScanDetails = async (req, res) => {
 };
 
 /**
- * Get user's scans
+ * Get user's scans - with report URLs
  */
 const getUserScans = async (req, res) => {
   try {
@@ -348,7 +401,7 @@ const getUserScans = async (req, res) => {
 
     const { data: scans, error } = await supabase
       .from('scans')
-      .select('*, projects(name)')
+      .select('*, projects(name, repo_url)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
@@ -361,17 +414,38 @@ const getUserScans = async (req, res) => {
       });
     }
 
+    console.log(`📊 Fetched ${scans?.length || 0} scans for user ${userId}`);
+
+    // Return in format frontend expects: { success: true, data: { scans: [...] } }
     return res.json({
       success: true,
-      data: scans.map(scan => ({
-        id: scan.id,
-        projectName: scan.projects?.name || 'Unknown',
-        status: scan.status,
-        totalFindings: scan.total_findings || 0,
-        createdAt: scan.created_at,
-        startedAt: scan.started_at,
-        finishedAt: scan.finished_at
-      }))
+      data: {
+        scans: scans.map(scan => ({
+          id: scan.id,
+          projectName: scan.projects?.name || 'Unknown',
+          projectId: scan.project_id,
+          status: scan.status.toUpperCase(), // Normalize to uppercase
+          totalFindings: scan.total_findings || 0,
+          criticalCount: scan.critical_count || 0,
+          highCount: scan.high_count || 0,
+          mediumCount: scan.medium_count || 0,
+          lowCount: scan.low_count || 0,
+          createdAt: scan.created_at,
+          startedAt: scan.started_at,
+          finishedAt: scan.finished_at,
+          completedAt: scan.finished_at, // Alias
+          // IMPORTANT: Include report URL for download
+          reportUrl: scan.report_url,
+          report_url: scan.report_url, // Both formats for compatibility
+          pdfUrl: scan.report_url,
+          pdf_url: scan.report_url,
+          // Additional fields for reports page
+          targetPath: scan.projects?.repo_url,
+          riskScore: scan.risk_score || 0,
+          scanType: scan.scan_type || 'fast',
+          filesScanned: scan.file_count || 0
+        }))
+      }
     });
   } catch (error) {
     console.error('Get user scans error:', error);
@@ -383,13 +457,20 @@ const getUserScans = async (req, res) => {
 };
 
 /**
- * Get scan progress (for GitHub Actions scans, return workflow status)
+ * Get scan progress - READS DIRECTLY FROM SUPABASE (NO CACHE)
+ * Returns real-time progress for active scans
  */
 const getScanProgress = async (req, res) => {
   try {
     const { scanId } = req.params;
     const userId = req.user?.id;
 
+    // Add cache control headers to prevent caching
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    // Query Supabase directly - NO in-memory progress tracker
     const { data: scan, error } = await supabase
       .from('scans')
       .select('*')
@@ -398,23 +479,69 @@ const getScanProgress = async (req, res) => {
       .single();
 
     if (error || !scan) {
+      console.log(`⚠️ Scan not found: ${scanId}`, error?.message);
       return res.status(404).json({
         success: false,
         message: 'Scan not found'
       });
     }
 
-    // For GitHub Actions scans, return simple status
+    // Normalize status to UPPERCASE
+    const normalizedStatus = (scan.status || 'queued').toUpperCase();
+
+    // Calculate progress percentage
+    let progress = scan.progress || 0;
+    if (!progress && normalizedStatus === 'COMPLETED') {
+      progress = 100;
+    } else if (!progress && normalizedStatus === 'RUNNING') {
+      if (scan.file_count > 0 && scan.processed_files >= 0) {
+        progress = Math.round((scan.processed_files / scan.file_count) * 100);
+      } else {
+        progress = 30;
+      }
+    }
+
+    // Map status to phase
+    let phase = 'Initializing';
+    let message = 'Starting scan...';
+
+    switch (normalizedStatus) {
+      case 'QUEUED':
+        phase = 'Queued';
+        message = 'Waiting for GitHub Actions runner...';
+        break;
+      case 'RUNNING':
+        phase = 'Scanning';
+        message = scan.current_file 
+          ? `Processing: ${scan.current_file}` 
+          : `Scanning files... (${scan.processed_files || 0}/${scan.file_count || 0})`;
+        break;
+      case 'COMPLETED':
+        phase = 'Completed';
+        message = `Scan completed successfully - ${scan.total_findings || 0} findings detected`;
+        break;
+      case 'FAILED':
+        phase = 'Failed';
+        message = scan.error_message || 'Scan failed';
+        break;
+    }
+
     const progressData = {
       scanId: scan.id,
-      status: scan.status,
-      phase: scan.status === 'queued' ? 'Queued for GitHub Actions' : 
-             scan.status === 'completed' ? 'Completed' : 
-             scan.status === 'failed' ? 'Failed' : 'Processing',
-      message: scan.status === 'queued' ? 'Waiting for GitHub Actions runner...' :
-               scan.status === 'completed' ? 'Scan completed successfully' :
-               scan.status === 'failed' ? 'Scan failed' : 'Scanning in progress...'
+      status: normalizedStatus,
+      phase,
+      message,
+      percentage: progress,
+      totalFiles: scan.file_count || 0,
+      processedFiles: scan.processed_files || 0,
+      currentFile: scan.current_file,
+      findingsCount: scan.total_findings || 0,
+      elapsed: scan.started_at ? Date.now() - new Date(scan.started_at).getTime() : 0,
+      estimatedTimeRemaining: null, // Can calculate if needed
+      report_url: scan.report_url
     };
+
+    console.log(`📈 Progress for ${scanId}: ${normalizedStatus} (${progress}%)`);
 
     return res.json({
       success: true,

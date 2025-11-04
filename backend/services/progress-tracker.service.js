@@ -1,6 +1,10 @@
 /**
  * Progress Tracker Service
  * Manages real-time progress tracking for scan operations
+ * 
+ * ⚠️ NOTE: This is only used for LOCAL scans (not GitHub Actions)
+ * For GitHub Actions scans, progress is tracked directly in Supabase.
+ * See: scan-controller-github-actions.js
  */
 
 class ProgressTracker {

@@ -230,6 +230,13 @@ const getScanStatus = async (req, res) => {
       });
     }
 
+    // Set no-cache headers to prevent stale data
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+
     // Return scan status (without full findings)
     return res.status(200).json({
       success: true,
@@ -774,20 +781,60 @@ const getScanProgress = async (req, res) => {
       });
     }
 
-    // Get progress from progress tracker
-    const progressTracker = require('../services/progress-tracker.service');
-    const progress = progressTracker.getProgress(scanId);
+    // Query Supabase directly for progress data (GitHub Actions writes here)
+    const { createClient } = require('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
 
-    if (!progress) {
+    const { data: scan, error } = await supabase
+      .from('scans')
+      .select('id, status, progress, file_count, processed_files, current_file, elapsed_time, estimated_remaining, total_findings, started_at, finished_at')
+      .eq('id', scanId)
+      .eq('user_id', userId)
+      .single();
+
+    if (error || !scan) {
+      console.log('❌ Scan not found in Supabase:', error);
       return res.status(404).json({
         success: false,
         message: 'Scan not found or progress not available'
       });
     }
 
+    // Transform to expected format
+    const progress = {
+      scanId: scan.id,
+      stage: scan.status,
+      percentage: scan.progress || 0,
+      totalFiles: scan.file_count || 0,
+      processedFiles: scan.processed_files || 0,
+      currentFile: scan.current_file,
+      elapsed: scan.elapsed_time || 0,
+      estimatedTimeRemaining: scan.estimated_remaining,
+      findingsCount: scan.total_findings || 0,
+      startedAt: scan.started_at,
+      updatedAt: new Date()
+    };
+
+    console.log('✅ Progress from Supabase:', {
+      scanId: scan.id,
+      status: scan.status,
+      progress: scan.progress,
+      file_count: scan.file_count
+    });
+
+    // Set no-cache headers
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+
     return res.status(200).json({
       success: true,
-      progress
+      data: progress
     });
   } catch (error) {
     console.error('Error in getScanProgress:', error);

@@ -264,13 +264,14 @@ jobs:
       - name: Install PDF dependencies
         run: |
           cd backend
-          npm install pdfkit
+          npm install pdfkit @google/generative-ai
       
       - name: Generate PDF Report
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SCAN_ID: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.scan_id || github.event.client_payload.scan_id }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           node << 'EOF'
           const fs = require('fs');
@@ -278,11 +279,11 @@ jobs:
           
           (async () => {
             try {
-              // Load PDF service
-              const pdfServicePath = path.join(process.cwd(), 'backend/services/pdf-report.service.js');
+              // Load AI-Enhanced PDF service
+              const pdfServicePath = path.join(process.cwd(), 'backend/services/pdf-report-ai-enhanced.service.js');
               
               if (!fs.existsSync(pdfServicePath)) {
-                console.log('❌ PDF service not found at:', pdfServicePath);
+                console.log('❌ AI-Enhanced PDF service not found at:', pdfServicePath);
                 fs.writeFileSync('report-info.json', JSON.stringify({ filePath: null, fileName: null }));
                 return;
               }
@@ -292,13 +293,15 @@ jobs:
               
               const scanId = process.env.SCAN_ID;
               
-              console.log('📄 Generating PDF report for scan:', scanId);
+              console.log('📄 Generating AI-Enhanced PDF report for scan:', scanId);
               
               const result = await pdfService.generateScanReport(scanId, null);
               
-              console.log('✅ PDF generated:', result.fileName);
+              console.log('✅ AI-Enhanced PDF generated:', result.fileName);
               console.log('   File path:', result.filePath);
               console.log('   File size:', (result.size / 1024).toFixed(2), 'KB');
+              console.log('   EU AI Compliance Score included');
+              console.log('   Gemini AI Recommendations included');
               
               // Save report path for next step
               fs.writeFileSync('report-info.json', JSON.stringify({
@@ -306,7 +309,7 @@ jobs:
                 fileName: result.fileName
               }));
             } catch (err) {
-              console.error('❌ PDF generation failed:', err.message);
+              console.error('❌ AI-Enhanced PDF generation failed:', err.message);
               console.error(err.stack);
               console.log('⚠️  Continuing without PDF report');
               // Write empty info to prevent next step from failing
@@ -393,6 +396,100 @@ jobs:
           except HTTPError as e:
               print(f"⚠️ Failed to update scan with report URL: {e.code} {e.reason}")
           PYEOF
+      
+      - name: Update scan status to completed
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SCAN_ID: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.scan_id || github.event.client_payload.scan_id }}
+        run: |
+          python3 << 'EOF'
+          import json
+          import os
+          import sys
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError
+          from datetime import datetime
+          
+          # Read findings from results file
+          try:
+              with open('semgrep-results.json', 'r') as f:
+                  results = json.load(f)
+              findings = results.get('results', [])
+          except FileNotFoundError:
+              print("⚠️  No results file found")
+              findings = []
+          
+          scan_id = os.environ.get('SCAN_ID')
+          supabase_url = os.environ.get('SUPABASE_URL')
+          supabase_key = os.environ.get('SUPABASE_SERVICE_KEY')
+          
+          # Count findings by severity
+          severity_counts = {
+              'CRITICAL': 0,
+              'HIGH': 0,
+              'MEDIUM': 0,
+              'LOW': 0
+          }
+          
+          severity_map = {
+              'ERROR': 'CRITICAL',
+              'WARNING': 'HIGH',
+              'INFO': 'MEDIUM'
+          }
+          
+          for result in findings:
+              raw_severity = result.get('extra', {}).get('severity', 'INFO').upper()
+              severity = severity_map.get(raw_severity, 'MEDIUM')
+              severity_counts[severity] = severity_counts.get(severity, 0) + 1
+          
+          # Calculate unique files scanned
+          file_paths = set(f.get('path', 'unknown') for f in findings)
+          file_count = len(file_paths) if findings else 0
+          
+          scan_update = {
+              'status': 'completed',
+              'finished_at': datetime.utcnow().isoformat() + 'Z',
+              'progress': 100,
+              'file_count': file_count,
+              'processed_files': file_count,
+              'total_findings': len(findings),
+              'critical_count': severity_counts['CRITICAL'],
+              'high_count': severity_counts['HIGH'],
+              'medium_count': severity_counts['MEDIUM'],
+              'low_count': severity_counts['LOW']
+          }
+          
+          headers = {
+              'apikey': supabase_key,
+              'Authorization': f'Bearer {supabase_key}',
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal'
+          }
+          
+          data = json.dumps(scan_update).encode('utf-8')
+          req = Request(
+              f'{supabase_url}/rest/v1/scans?id=eq.{scan_id}',
+              data=data,
+              headers=headers,
+              method='PATCH'
+          )
+          
+          try:
+              with urlopen(req) as response:
+                  print(f"✅ Updated scan {scan_id} to completed")
+                  print(f"   Status: completed")
+                  print(f"   Progress: 100%")
+                  print(f"   Files: {file_count}")
+                  print(f"   Findings: {len(findings)}")
+                  print(f"   Critical: {severity_counts['CRITICAL']}, High: {severity_counts['HIGH']}, Medium: {severity_counts['MEDIUM']}, Low: {severity_counts['LOW']}")
+          except HTTPError as e:
+              error_body = e.read().decode('utf-8')
+              print(f"❌ Failed to update scan status: {e.code} {e.reason}")
+              print(f"   Error: {error_body}")
+              sys.exit(1)
+          EOF
       
 
       
