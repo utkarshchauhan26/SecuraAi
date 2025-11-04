@@ -42,7 +42,7 @@ export default function ReportsPage() {
         s.projectId?.toLowerCase()?.includes(q) ||
         s.targetPath?.toLowerCase()?.includes(q)
 
-      const matchesStatus = status === "all" || s.status === status
+      const matchesStatus = status === "all" || s.status?.toUpperCase() === status.toUpperCase()
       return matchesSearch && matchesStatus
     })
 
@@ -101,13 +101,15 @@ export default function ReportsPage() {
   }
 
   const getStatusBadge = (s: string) => {
-    switch (s) {
-      case "completed":
+    const status = s?.toUpperCase() // Normalize to uppercase
+    switch (status) {
+      case "COMPLETED":
         return { icon: CheckCircle, className: "bg-green-500/10 text-green-500 border-green-500/20" }
-      case "failed":
+      case "FAILED":
         return { icon: AlertTriangle, className: "bg-red-500/10 text-red-500 border-red-500/20" }
-      case "running":
-      case "pending":
+      case "RUNNING":
+      case "PENDING":
+      case "IN_PROGRESS":
         return { icon: RefreshCw, className: "bg-blue-500/10 text-blue-500 border-blue-500/20" }
       default:
         return { icon: FileText, className: "bg-muted text-muted-foreground" }
@@ -116,7 +118,7 @@ export default function ReportsPage() {
 
   // Summary stats
   const total = Array.isArray(scans) ? scans.length : 0
-  const completed = Array.isArray(scans) ? scans.filter((s: AnyScan) => s.status === "completed").length : 0
+  const completed = Array.isArray(scans) ? scans.filter((s: AnyScan) => s.status?.toUpperCase() === "COMPLETED").length : 0
   const avgRisk = total > 0 ? Math.round((scans as AnyScan[]).reduce((sum, s) => sum + (s.riskScore || 0), 0) / total) : 0
 
   return (
@@ -155,10 +157,10 @@ export default function ReportsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="running">Running</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="failed">Failed</SelectItem>
+                    <SelectItem value="COMPLETED">Completed</SelectItem>
+                    <SelectItem value="RUNNING">Running</SelectItem>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="FAILED">Failed</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -280,10 +282,16 @@ export default function ReportsPage() {
                       </div>
 
                       <div className="flex gap-2">
-                        {scan.status === "completed" && (
+                        {scan.status?.toUpperCase() === "COMPLETED" && pdfUrl && (
                           <Button onClick={() => handleDownloadPDF(scan)} variant="default">
                             <Download className="w-4 h-4 mr-2" />
                             Download PDF
+                          </Button>
+                        )}
+                        {scan.status?.toUpperCase() === "COMPLETED" && !pdfUrl && (
+                          <Button variant="outline" disabled>
+                            <AlertTriangle className="w-4 h-4 mr-2" />
+                            No PDF Available
                           </Button>
                         )}
                       </div>
