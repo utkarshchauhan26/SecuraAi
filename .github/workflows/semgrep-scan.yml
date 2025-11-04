@@ -261,17 +261,26 @@ jobs:
         with:
           node-version: '18'
       
-      - name: Install PDF dependencies
+      - name: Install PDF and AI dependencies
         run: |
           cd backend
-          npm install pdfkit @google/generative-ai
+          npm install pdfkit @google/generative-ai @prisma/client
       
-      - name: Generate PDF Report
+      - name: Setup Prisma Client
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          cd backend
+          npx prisma generate
+          echo "✅ Prisma client generated successfully"
+      
+      - name: Generate AI-Enhanced PDF Report
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SCAN_ID: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.scan_id || github.event.client_payload.scan_id }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           node << 'EOF'
           const fs = require('fs');
@@ -279,7 +288,7 @@ jobs:
           
           (async () => {
             try {
-              // Load AI-Enhanced PDF service
+              // Use AI-Enhanced PDF service with Prisma and Gemini
               const pdfServicePath = path.join(process.cwd(), 'backend/services/pdf-report-ai-enhanced.service.js');
               
               if (!fs.existsSync(pdfServicePath)) {
@@ -294,14 +303,15 @@ jobs:
               const scanId = process.env.SCAN_ID;
               
               console.log('📄 Generating AI-Enhanced PDF report for scan:', scanId);
+              console.log('   🤖 Including Gemini AI recommendations');
+              console.log('   📊 Including EU AI Compliance scores');
               
               const result = await pdfService.generateScanReport(scanId, null);
               
-              console.log('✅ AI-Enhanced PDF generated:', result.fileName);
-              console.log('   File path:', result.filePath);
-              console.log('   File size:', (result.size / 1024).toFixed(2), 'KB');
-              console.log('   EU AI Compliance Score included');
-              console.log('   Gemini AI Recommendations included');
+              console.log('✅ AI-Enhanced PDF generated successfully!');
+              console.log('   📄 File:', result.fileName);
+              console.log('   📁 Path:', result.filePath);
+              console.log('   💾 Size:', (result.size / 1024).toFixed(2), 'KB');
               
               // Save report path for next step
               fs.writeFileSync('report-info.json', JSON.stringify({
