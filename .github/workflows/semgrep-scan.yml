@@ -254,21 +254,122 @@ jobs:
                   sys.exit(1)
           else:
               print("No findings to upload")
+          EOF
+      
+      - name: Set up Node.js for PDF generation
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install PDF dependencies
+        run: |
+          cd backend
+          npm install pdfkit
+      
+      - name: Generate PDF Report
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SCAN_ID: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.scan_id || github.event.client_payload.scan_id }}
+        run: |
+          node << 'EOF'
+          const fs = require('fs');
+          const path = require('path');
           
-          # Update scan status to completed
-          from datetime import datetime
+          (async () => {
+            try {
+              // Load PDF service
+              const pdfServicePath = path.join(process.cwd(), 'backend/services/pdf-report.service.js');
+              
+              if (!fs.existsSync(pdfServicePath)) {
+                console.log('❌ PDF service not found at:', pdfServicePath);
+                fs.writeFileSync('report-info.json', JSON.stringify({ filePath: null, fileName: null }));
+                return;
+              }
+              
+              const PDFService = require(pdfServicePath);
+              const pdfService = new PDFService();
+              
+              const scanId = process.env.SCAN_ID;
+              
+              console.log('📄 Generating PDF report for scan:', scanId);
+              
+              const result = await pdfService.generateScanReport(scanId, null);
+              
+              console.log('✅ PDF generated:', result.fileName);
+              console.log('   File path:', result.filePath);
+              console.log('   File size:', (result.size / 1024).toFixed(2), 'KB');
+              
+              // Save report path for next step
+              fs.writeFileSync('report-info.json', JSON.stringify({
+                filePath: result.filePath,
+                fileName: result.fileName
+              }));
+            } catch (err) {
+              console.error('❌ PDF generation failed:', err.message);
+              console.error(err.stack);
+              console.log('⚠️  Continuing without PDF report');
+              // Write empty info to prevent next step from failing
+              fs.writeFileSync('report-info.json', JSON.stringify({
+                filePath: null,
+                fileName: null
+              }));
+            }
+          })();
+          EOF
+      
+      - name: Upload PDF to Supabase Storage
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SCAN_ID: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.scan_id || github.event.client_payload.scan_id }}
+        run: |
+          # Check if PDF was generated
+          if [ ! -f "report-info.json" ]; then
+            echo "⚠️  No report info found, skipping upload"
+            exit 0
+          fi
+          
+          FILE_PATH=$(node -p "JSON.parse(require('fs').readFileSync('report-info.json')).filePath")
+          FILE_NAME=$(node -p "JSON.parse(require('fs').readFileSync('report-info.json')).fileName")
+          
+          if [ "$FILE_PATH" = "null" ] || [ ! -f "$FILE_PATH" ]; then
+            echo "⚠️  PDF file not found, skipping upload"
+            exit 0
+          fi
+          
+          echo "📤 Uploading PDF to Supabase Storage..."
+          
+          # Upload file to Supabase Storage using REST API
+          BUCKET_NAME="reports"
+          STORAGE_PATH="$SCAN_ID/$FILE_NAME"
+          
+          curl -X POST \
+            "$SUPABASE_URL/storage/v1/object/$BUCKET_NAME/$STORAGE_PATH" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "Content-Type: application/pdf" \
+            --data-binary "@$FILE_PATH" \
+            -w "\nHTTP Status: %{http_code}\n"
+          
+          # Get public URL
+          PUBLIC_URL="$SUPABASE_URL/storage/v1/object/public/$BUCKET_NAME/$STORAGE_PATH"
+          echo "✅ Report uploaded to: $PUBLIC_URL"
+          
+          # Update scan record with report URL
+          python3 << PYEOF
+          import json
+          import os
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError
+          
+          scan_id = os.environ.get('SCAN_ID')
+          supabase_url = os.environ.get('SUPABASE_URL')
+          supabase_key = os.environ.get('SUPABASE_SERVICE_KEY')
+          public_url = os.environ.get('PUBLIC_URL', f"{supabase_url}/storage/v1/object/public/reports/{scan_id}/$FILE_NAME")
           
           scan_update = {
-              'status': 'completed',
-              'finished_at': datetime.utcnow().isoformat() + 'Z',
-              'progress': 100,
-              'file_count': len(set(f['file_path'] for f in findings)) if findings else 0,
-              'processed_files': len(set(f['file_path'] for f in findings)) if findings else 0,
-              'total_findings': len(findings),
-              'critical_count': sum(1 for f in findings if f['severity'] == 'CRITICAL'),
-              'high_count': sum(1 for f in findings if f['severity'] == 'HIGH'),
-              'medium_count': sum(1 for f in findings if f['severity'] == 'MEDIUM'),
-              'low_count': sum(1 for f in findings if f['severity'] == 'LOW')
+              'report_url': public_url
           }
           
           headers = {
@@ -288,11 +389,12 @@ jobs:
           
           try:
               with urlopen(req) as response:
-                  print(f"✅ Updated scan {scan_id} to completed")
+                  print(f"✅ Updated scan with report URL: {public_url}")
           except HTTPError as e:
-              print(f"❌ Failed to update scan: {e.code} {e.reason}")
-              sys.exit(1)
-          EOF
+              print(f"⚠️ Failed to update scan with report URL: {e.code} {e.reason}")
+          PYEOF
+      
+
       
       - name: Cleanup
         if: always()
