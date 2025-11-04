@@ -37,21 +37,32 @@ class GitHubActionsService {
       throw new Error(errorMsg);
     }
 
+    // Validate that repo_url is provided for repository scans
+    if (!repoUrl) {
+      console.warn('⚠️ No repo_url provided - scan may fail in GitHub Actions');
+    }
+
     try {
       console.log(`🚀 Triggering GitHub Actions scan for scanId: ${scanId}`);
+      console.log(`� Repository URL: ${repoUrl || 'Not provided'}`);
+      console.log(`🔍 Scan Type: ${scanType}`);
       console.log(`🔑 Using token: ${this.token.substring(0, 7)}...`);
+      
+      const clientPayload = {
+        scan_id: scanId,
+        repo_url: repoUrl,
+        scan_type: scanType,
+        user_id: userId,
+        triggered_at: new Date().toISOString()
+      };
+
+      console.log('📤 Sending payload:', JSON.stringify(clientPayload, null, 2));
       
       const response = await axios.post(
         `https://api.github.com/repos/${this.owner}/${this.repo}/dispatches`,
         {
           event_type: 'scan-request',
-          client_payload: {
-            scan_id: scanId,
-            repo_url: repoUrl,
-            scan_type: scanType,
-            user_id: userId,
-            triggered_at: new Date().toISOString()
-          }
+          client_payload: clientPayload
         },
         {
           headers: {
@@ -63,11 +74,13 @@ class GitHubActionsService {
       );
 
       console.log(`✅ GitHub Actions workflow triggered successfully for scan ${scanId}`);
+      console.log(`📋 Response status: ${response.status}`);
       
       return {
         success: true,
         message: 'Scan workflow triggered',
-        scanId
+        scanId,
+        payload: clientPayload
       };
     } catch (error) {
       const errorDetails = error.response?.data || error.message;

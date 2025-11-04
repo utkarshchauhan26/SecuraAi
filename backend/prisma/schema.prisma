@@ -46,6 +46,7 @@ model Scan {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   projectId      String    @map("project_id") @db.Uuid
   userId         String    @map("user_id") @db.Uuid
+  userEmail      String?   @map("user_email")
   status         String
   startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
   finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)

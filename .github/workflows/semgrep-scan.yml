@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: SecuraAI Scan
 
 on:
@@ -59,17 +60,69 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SCAN_ID: ${{ github.event.client_payload.scan_id }}
         run: |
+          echo "✅ Repository dispatch event received"
           echo "Scan ID: ${{ github.event.client_payload.scan_id }}"
           echo "Repo URL: ${{ github.event.client_payload.repo_url }}"
           echo "Scan type: ${{ github.event.client_payload.scan_type }}"
+          echo "User ID: ${{ github.event.client_payload.user_id }}"
+          
+          # Update scan status to 'running'
+          python3 << 'EOF'
+          import json
+          import os
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError
+          
+          scan_id = os.environ.get('SCAN_ID')
+          supabase_url = os.environ.get('SUPABASE_URL')
+          supabase_key = os.environ.get('SUPABASE_SERVICE_KEY')
+          
+          scan_update = {
+              'status': 'running'
+          }
+          
+          headers = {
+              'apikey': supabase_key,
+              'Authorization': f'Bearer {supabase_key}',
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal'
+          }
+          
+          data = json.dumps(scan_update).encode('utf-8')
+          req = Request(
+              f'{supabase_url}/rest/v1/scans?id=eq.{scan_id}',
+              data=data,
+              headers=headers,
+              method='PATCH'
+          )
+          
+          try:
+              with urlopen(req) as response:
+                  print(f"✅ Updated scan {scan_id} status to 'running'")
+          except HTTPError as e:
+              print(f"⚠️ Failed to update scan status: {e.code} {e.reason}")
+          EOF
+          
           mkdir -p scan_workspace
           
           # Clone the repository if URL provided
-          if [ -n "${{ github.event.client_payload.repo_url }}" ]; then
+          REPO_URL="${{ github.event.client_payload.repo_url }}"
+          if [ -n "$REPO_URL" ] && [ "$REPO_URL" != "null" ]; then
+            echo "📥 Cloning repository: $REPO_URL"
             cd scan_workspace
-            git clone --depth 1 ${{ github.event.client_payload.repo_url }} project
+            if git clone --depth 1 "$REPO_URL" project; then
+              echo "✅ Repository cloned successfully"
+              ls -la project/
+            else
+              echo "❌ Failed to clone repository"
+              exit 1
+            fi
             cd ..
+          else
+            echo "⚠️ No repository URL provided - scan will fail"
+            exit 1
           fi
       
       - name: Run Semgrep Fast Scan

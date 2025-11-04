@@ -28,6 +28,7 @@ const scanRepository = async (req, res) => {
 
     // Get authenticated user
     const userId = req.user?.id;
+    const userEmail = req.user?.email;
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -35,7 +36,7 @@ const scanRepository = async (req, res) => {
       });
     }
 
-    console.log(`📦 Repository scan request - URL: ${repoUrl}, Type: ${scanType}`);
+    console.log(`📦 Repository scan request - URL: ${repoUrl}, Type: ${scanType}, User: ${userEmail}`);
 
     // Extract repository name from URL
     const repoName = repoUrl.split('/').pop().replace('.git', '');
@@ -61,7 +62,7 @@ const scanRepository = async (req, res) => {
       });
     }
 
-    // Create scan record
+    // Create scan record with both user_id and user_email
     const scanId = uuidv4();
     const { data: scan, error: scanError } = await supabase
       .from('scans')
@@ -69,6 +70,7 @@ const scanRepository = async (req, res) => {
         id: scanId,
         project_id: project.id,
         user_id: userId,
+        user_email: userEmail,
         status: 'queued',
         started_at: new Date().toISOString()
       })
@@ -145,6 +147,7 @@ const scanFile = async (req, res) => {
     }
 
     const userId = req.user?.id;
+    const userEmail = req.user?.email;
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -153,7 +156,7 @@ const scanFile = async (req, res) => {
     }
 
     const scanType = req.body.scanType || 'fast';
-    console.log(`📁 File scan request - File: ${req.file.originalname}, Type: ${scanType}`);
+    console.log(`📁 File scan request - File: ${req.file.originalname}, Type: ${scanType}, User: ${userEmail}`);
 
     // Create project record
     const { data: project, error: projectError } = await supabase
@@ -175,7 +178,7 @@ const scanFile = async (req, res) => {
       });
     }
 
-    // Create scan record
+    // Create scan record with both user_id and user_email
     const scanId = uuidv4();
     const { data: scan, error: scanError } = await supabase
       .from('scans')
@@ -183,6 +186,7 @@ const scanFile = async (req, res) => {
         id: scanId,
         project_id: project.id,
         user_id: userId,
+        user_email: userEmail,
         status: 'queued',
         started_at: new Date().toISOString()
       })
