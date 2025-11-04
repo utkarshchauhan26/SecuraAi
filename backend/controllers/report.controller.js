@@ -5,7 +5,8 @@
  */
 
 // Use AI-enhanced PDF service for compliance reports
-const pdfService = require('../services/pdf-report-ai-enhanced.service');
+const AIEnhancedPDFService = require('../services/pdf-report-ai-enhanced.service');
+const pdfService = new AIEnhancedPDFService();
 
 const { createClient } = require('@supabase/supabase-js');
 

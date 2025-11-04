@@ -837,4 +837,4 @@ class AIEnhancedPDFService {
   }
 }
 
-module.exports = new AIEnhancedPDFService();
+module.exports = AIEnhancedPDFService;
