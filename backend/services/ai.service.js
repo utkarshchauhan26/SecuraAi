@@ -12,8 +12,9 @@ class AIService {
       this.genAI = null;
     } else {
       this.genAI = new GoogleGenerativeAI(apiKey);
+      // Use gemini-1.5-flash-latest for v1beta API compatibility
       this.model = this.genAI.getGenerativeModel({ 
-        model: process.env.AI_MODEL || 'gemini-1.5-flash'
+        model: process.env.AI_MODEL || 'gemini-1.5-flash-latest'
       });
     }
     
@@ -89,7 +90,7 @@ class AIService {
         completionTokens: estimatedCompletionTokens,
         totalTokens: totalTokens,
         estimatedCost: costCents,
-        model: process.env.AI_MODEL || 'gemini-1.5-flash'
+        model: process.env.AI_MODEL || 'gemini-1.5-flash-latest'
       };
       
       const fullResponse = { 
