@@ -39,7 +39,7 @@ SecuraAI is designed to help developers, especially those who aren't security ex
 - **Frontend:** Next.js with React and Tailwind CSS
 - **Backend:** Node.js with Express
 - **Static Analysis:** Semgrep
-- **AI Integration:** OpenAI GPT
+- **AI Integration:** Gemini API
 - **Caching:** Node-Cache (in-memory caching)
 
 ## Setup Instructions
