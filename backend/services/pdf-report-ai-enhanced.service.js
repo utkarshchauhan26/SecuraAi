@@ -472,7 +472,7 @@ class AIEnhancedPDFService {
       doc.fontSize(this.fonts.small)
          .font('Helvetica')
          .fillColor(this.colors.textLight)
-         .text(`File: ${finding.path || finding.filePath} (Line ${finding.line || 'N/A'})`, { lineGap: 2 });
+         .text(`File: ${finding.file_path || finding.path || finding.filePath} (Line ${finding.start_line || finding.line || 'N/A'})`, { lineGap: 2 });
 
       // AI Suggestion (if available)
       if (finding.explanations && finding.explanations.length > 0) {

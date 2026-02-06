@@ -74,11 +74,11 @@ const getReport = async (req, res) => {
           findings: scan.findings.map(f => ({
             id: f.id,
             severity: f.severity,
-            checkId: f.checkId,
-            message: f.message,
-            filePath: f.filePath,
-            line: f.line,
-            code: f.code,
+            checkId: f.rule_id || f.checkId,
+            message: f.message || f.title,
+            filePath: f.file_path || f.filePath,
+            line: f.start_line || f.line,
+            code: f.code_snippet || f.code,
             hasExplanation: f.explanations.length > 0
           })),
           summary: {

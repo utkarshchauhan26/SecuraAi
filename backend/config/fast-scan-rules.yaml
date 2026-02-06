@@ -5,10 +5,23 @@ rules:
     severity: ERROR
     languages: [javascript, typescript, python, java]
     
+  - id: hardcoded-secret-string
+    pattern-regex: (password|passwd|secret|apiKey|api_key|token)\s*=\s*[\"'][a-zA-Z0-9_-]{8,}[\"']
+    message: Hardcoded credential detected in source code
+    severity: ERROR
+    languages: [javascript, typescript, python, java]
+    
   - id: sql-injection-concat
     pattern: |
       $DB.query("..." + $INPUT + "...")
     message: Possible SQL injection vulnerability
+    severity: ERROR
+    languages: [javascript, typescript]
+    
+  - id: sql-injection-template
+    pattern: |
+      $DB.query(`...${$INPUT}...`)
+    message: Possible SQL injection via template string
     severity: ERROR
     languages: [javascript, typescript]
     
@@ -32,8 +45,51 @@ rules:
     severity: ERROR
     languages: [javascript, typescript]
     
+  - id: exec-usage
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: exec(...)
+    message: Use of eval/exec is dangerous
+    severity: ERROR
+    languages: [python]
+    
   - id: api-key-exposure
     pattern-regex: (api[_-]?key|apikey|api[_-]?secret|sk_live)\s*=\s*[\"'][a-zA-Z0-9_-]{20,}[\"']
     message: Possible API key exposure
     severity: ERROR
     languages: [javascript, typescript, python, java, go]
+    
+  - id: command-injection
+    pattern-either:
+      - pattern: child_process.exec($INPUT, ...)
+      - pattern: require("child_process").exec($INPUT, ...)
+    message: Possible command injection
+    severity: ERROR
+    languages: [javascript, typescript]
+    
+  - id: weak-crypto
+    pattern-either:
+      - pattern: crypto.createHash("md5")
+      - pattern: crypto.createHash("sha1")
+    message: Weak cryptographic algorithm - use SHA-256 or stronger
+    severity: WARNING
+    languages: [javascript, typescript]
+    
+  - id: console-log
+    pattern: console.log(...)
+    message: Console statement detected - remove in production
+    severity: INFO
+    languages: [javascript, typescript]
+    
+  - id: todo-comment
+    pattern-regex: (TODO|FIXME|HACK|XXX)
+    message: Unresolved TODO/FIXME comment
+    severity: INFO
+    languages: [javascript, typescript, python, java]
+    
+  - id: empty-catch
+    pattern: |
+      try { ... } catch($ERR) { }
+    message: Empty catch block swallows errors
+    severity: INFO
+    languages: [javascript, typescript]
