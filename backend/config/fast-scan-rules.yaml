@@ -93,3 +93,164 @@ rules:
     message: Empty catch block swallows errors
     severity: INFO
     languages: [javascript, typescript]
+  # Security Architecture Patterns
+  - id: missing-rate-limiter
+    pattern-not: |
+      require('express-rate-limit')
+    pattern: |
+      const $APP = express()
+    message: Application may be missing rate limiting protection - consider using express-rate-limit
+    severity: ERROR
+    languages: [javascript, typescript]
+    metadata:
+      category: security
+      cwe: "CWE-770: Allocation of Resources Without Limits or Throttling"
+      owasp: "API4:2023 Unrestricted Resource Consumption"
+      impact: HIGH
+      likelihood: HIGH
+      
+  - id: unsafe-cors-wildcard
+    pattern-either:
+      - pattern: cors({origin:"*",...})
+      - pattern: cors({origin:'*',...})
+      - pattern: |
+          $APP.use(cors({origin:"*"}))
+    message: CORS configured with wildcard (*) - allows any origin to access API
+    severity: ERROR
+    languages: [javascript, typescript]
+    metadata:
+      category: security
+      cwe: "CWE-346: Origin Validation Error"
+      owasp: "A05:2021 Security Misconfiguration"
+      
+  - id: jwt-no-verify
+    pattern-either:
+      - pattern: jwt.decode($TOKEN)
+      - pattern: $JWT.decode($TOKEN, {verify:false,...})
+    message: JWT decoded without verification - attacker can forge tokens
+    severity: ERROR
+    languages: [javascript, typescript]
+    metadata:
+      category: security
+      cwe: "CWE-347: Improper Verification of Cryptographic Signature"
+      owasp: "A02:2021 Cryptographic Failures"
+      
+  - id: missing-input-validation
+    pattern: |
+      router.$METHOD($PATH, async ($REQ, $RES) => {
+        ...
+        $DATA = $REQ.body
+        ...
+      })
+    pattern-not-inside: |
+      router.$METHOD($PATH, $VALIDATOR, ...)
+    message: Route handler may be missing input validation middleware
+    severity: WARNING
+    languages: [javascript, typescript]
+    metadata:
+      category: security
+      cwe: "CWE-20: Improper Input Validation"
+      owasp: "A03:2021 Injection"
+      
+  - id: env-variable-logged
+    pattern-either:
+      - pattern: console.log(..., process.env.$VAR, ...)
+      - pattern: logger.log(..., process.env.$VAR, ...)
+      - pattern: console.error(..., process.env.$VAR, ...)
+    message: Environment variable logged - may expose secrets in logs
+    severity: WARNING
+    languages: [javascript, typescript]
+    metadata:
+      category: security
+      cwe: "CWE-532: Information Exposure Through Log Files"
+      
+  - id: missing-helmet
+    pattern: |
+      const $APP = express()
+    pattern-not: |
+      require('helmet')
+    message: Application missing Helmet.js security headers
+    severity: WARNING
+    languages: [javascript, typescript]
+    metadata:
+      category: security
+      owasp: "A05:2021 Security Misconfiguration"
+      
+  - id: unsafe-file-upload
+    pattern-either:
+      - pattern: multer({dest:$PATH})
+      - pattern: multer()
+    pattern-not-inside: |
+      multer({
+        ...
+        limits: {...},
+        fileFilter: $FILTER,
+        ...
+      })
+    message: File upload without size limits or file type validation
+    severity: WARNING
+    languages: [javascript, typescript]
+    metadata:
+      category: security
+      cwe: "CWE-434: Unrestricted Upload of File with Dangerous Type"
+      owasp: "A04:2021 Insecure Design"
+      
+  - id: private-key-in-code
+    pattern-regex: -----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----
+    message: Private cryptographic key embedded in source code
+    severity: ERROR
+    languages: [javascript, typescript, python, java, go]
+    metadata:
+      category: security
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      owasp: "A07:2021 Identification and Authentication Failures"
+      
+  - id: aws-access-key
+    pattern-regex: AKIA[0-9A-Z]{16}
+    message: AWS Access Key ID detected in source code
+    severity: ERROR
+    languages: [javascript, typescript, python, java, go]
+    metadata:
+      category: security
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      
+  - id: github-token
+    pattern-regex: gh[pousrt]_[a-zA-Z0-9]{36,255}
+    message: GitHub personal access token detected
+    severity: ERROR
+    languages: [javascript, typescript, python, java, go]
+    metadata:
+      category: security
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      
+  - id: insecure-random
+    pattern-either:
+      - pattern: Math.random()
+      - pattern: new Date().getTime()
+    pattern-inside: |
+      function $FUNC(...) {
+        ...
+      }
+    pattern-not-inside: |
+      function $MATH(...) {
+        ...
+      }
+    message: Insecure random number generation - use crypto.randomBytes() for security-sensitive operations
+    severity: WARNING
+    languages: [javascript, typescript]
+    metadata:
+      category: security
+      cwe: "CWE-338: Use of Cryptographically Weak PRNG"
+      
+  - id: unencrypted-communication
+    pattern-either:
+      - pattern: http.request($URL, ...)
+      - pattern: axios.get("http://...", ...)
+      - pattern: fetch("http://...", ...)
+    message: Unencrypted HTTP communication detected - use HTTPS
+    severity: WARNING
+    languages: [javascript, typescript]
+    metadata:
+      category: security
+      cwe: "CWE-319: Cleartext Transmission of Sensitive Information"
+      owasp: "A02:2021 Cryptographic Failures"

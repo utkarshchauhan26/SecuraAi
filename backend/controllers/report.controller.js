@@ -66,6 +66,7 @@ const getReport = async (req, res) => {
         completedAt: scan.completedAt,
         status: scan.status,
         scanType: scan.scanType,
+        filesScanned: scan.files_scanned || scan.filesScanned || 0,
         project: {
           id: scan.project.id,
           name: scan.project.name

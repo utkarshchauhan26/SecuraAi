@@ -380,6 +380,7 @@ const getScanStatus = async (req, res) => {
       status: normalizedStatus,
       progress,
       file_count: scan.file_count || 0,
+      filesScanned: scan.files_scanned || 0,
       processed_files: scan.processed_files || 0,
       current_file: scan.current_file,
       findings_count: scan.total_findings || 0,
@@ -452,7 +453,8 @@ const getScanDetails = async (req, res) => {
           createdAt: scan.created_at,
           startedAt: scan.started_at,
           finishedAt: scan.finished_at,
-          totalFindings: scan.total_findings || 0
+          totalFindings: scan.total_findings || 0,
+          filesScanned: scan.files_scanned || 0
         },
         project: {
           id: scan.projects.id,
@@ -524,7 +526,7 @@ const getUserScans = async (req, res) => {
           targetPath: scan.projects?.repo_url,
           riskScore: scan.risk_score || 0,
           scanType: scan.scan_type || 'fast',
-          filesScanned: scan.file_count || 0
+          filesScanned: scan.files_scanned || 0
         }))
       }
     });
