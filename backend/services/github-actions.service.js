@@ -27,6 +27,8 @@ class GitHubActionsService {
     const {
       scanId,
       repoUrl = null,
+      fileUrl = null,
+      fileName = null,
       scanType = 'fast',
       userId
     } = payload;
@@ -37,20 +39,23 @@ class GitHubActionsService {
       throw new Error(errorMsg);
     }
 
-    // Validate that repo_url is provided for repository scans
-    if (!repoUrl) {
-      console.warn('⚠️ No repo_url provided - scan may fail in GitHub Actions');
+    // Validate that either repo_url or file_url is provided
+    if (!repoUrl && !fileUrl) {
+      console.warn('⚠️ No repo_url or file_url provided - scan may fail in GitHub Actions');
     }
 
     try {
-      console.log(`🚀 Triggering GitHub Actions scan for scanId: ${scanId}`);
-      console.log(`� Repository URL: ${repoUrl || 'Not provided'}`);
+      const scanSource = fileUrl ? 'file' : 'repository';
+      console.log(`🚀 Triggering GitHub Actions ${scanSource} scan for scanId: ${scanId}`);
+      console.log(`📦 Source: ${repoUrl || fileName || 'Not provided'}`);
       console.log(`🔍 Scan Type: ${scanType}`);
       console.log(`🔑 Using token: ${this.token.substring(0, 7)}...`);
       
       const clientPayload = {
         scan_id: scanId,
         repo_url: repoUrl,
+        file_url: fileUrl,
+        file_name: fileName,
         scan_type: scanType,
         user_id: userId,
         triggered_at: new Date().toISOString()

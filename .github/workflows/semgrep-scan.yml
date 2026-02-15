@@ -65,6 +65,8 @@ jobs:
           echo "✅ Repository dispatch event received"
           echo "Scan ID: ${{ github.event.client_payload.scan_id }}"
           echo "Repo URL: ${{ github.event.client_payload.repo_url }}"
+          echo "File URL: ${{ github.event.client_payload.file_url }}"
+          echo "File Name: ${{ github.event.client_payload.file_name }}"
           echo "Scan type: ${{ github.event.client_payload.scan_type }}"
           echo "User ID: ${{ github.event.client_payload.user_id }}"
           
@@ -108,9 +110,40 @@ jobs:
           
           mkdir -p scan_workspace
           
-          # Clone the repository if URL provided
+          # Check if it's a file upload scan or repository scan
+          FILE_URL="${{ github.event.client_payload.file_url }}"
+          FILE_NAME="${{ github.event.client_payload.file_name }}"
           REPO_URL="${{ github.event.client_payload.repo_url }}"
-          if [ -n "$REPO_URL" ] && [ "$REPO_URL" != "null" ]; then
+          
+          if [ -n "$FILE_URL" ] && [ "$FILE_URL" != "null" ]; then
+            echo "📥 Downloading file: $FILE_NAME"
+            cd scan_workspace
+            
+            # Download file from Supabase Storage
+            if curl -L -o uploaded_file "$FILE_URL"; then
+              echo "✅ File downloaded successfully"
+              
+              # Create project directory and extract/move file
+              mkdir -p project
+              
+              # Check if it's a zip file
+              if [[ "$FILE_NAME" == *.zip ]]; then
+                echo "📦 Extracting zip file..."
+                unzip -q uploaded_file -d project/
+                rm uploaded_file
+              else
+                # Move single file to project directory
+                mv uploaded_file "project/$FILE_NAME"
+              fi
+              
+              echo "📁 Files ready for scanning:"
+              ls -la project/
+            else
+              echo "❌ Failed to download file"
+              exit 1
+            fi
+            cd ..
+          elif [ -n "$REPO_URL" ] && [ "$REPO_URL" != "null" ]; then
             echo "📥 Cloning repository: $REPO_URL"
             cd scan_workspace
             if git clone --depth 1 "$REPO_URL" project; then
@@ -122,7 +155,7 @@ jobs:
             fi
             cd ..
           else
-            echo "⚠️ No repository URL provided - scan will fail"
+            echo "❌ No file URL or repository URL provided"
             exit 1
           fi
       

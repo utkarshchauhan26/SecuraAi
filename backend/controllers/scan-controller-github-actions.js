@@ -201,24 +201,105 @@ const scanFile = async (req, res) => {
       });
     }
 
-    // Note: File uploads would need to be uploaded to a storage service
-    // that GitHub Actions can access (e.g., Supabase Storage)
-    // For now, return an informative message
-    
-    console.log(`⚠️ File scans via GitHub Actions require file upload implementation`);
-    
-    return res.json({
-      success: true,
-      message: 'Scan queued successfully',
-      data: {
-        scanId: scan.id,
-        projectId: project.id,
-        status: 'queued',
-        note: 'File will be processed by GitHub Actions'
+    // Upload file to Supabase Storage
+    try {
+      const fileBuffer = await fs.readFile(req.file.path);
+      const fileName = `${scanId}/${req.file.originalname}`;
+      
+      console.log(`📤 Uploading file to Supabase Storage: ${fileName}`);
+      
+      // Create scan-files bucket if it doesn't exist
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const bucketExists = buckets?.some(b => b.id === 'scan-files');
+      
+      if (!bucketExists) {
+        await supabase.storage.createBucket('scan-files', {
+          public: false,
+          fileSizeLimit: 10485760 // 10MB
+        });
       }
-    });
+      
+      // Upload file
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('scan-files')
+        .upload(fileName, fileBuffer, {
+          contentType: req.file.mimetype,
+          upsert: true
+        });
+      
+      if (uploadError) {
+        console.error('Supabase upload error:', uploadError);
+        throw new Error(`Failed to upload file: ${uploadError.message}`);
+      }
+      
+      // Get signed URL (valid for 1 hour - enough for GitHub Actions to download)
+      const { data: urlData, error: urlError } = await supabase.storage
+        .from('scan-files')
+        .createSignedUrl(fileName, 3600); // 1 hour
+      
+      if (urlError) {
+        throw new Error(`Failed to get file URL: ${urlError.message}`);
+      }
+      
+      const fileUrl = urlData.signedUrl;
+      console.log(`✅ File uploaded successfully: ${fileUrl}`);
+      
+      // Clean up local file
+      await fs.unlink(req.file.path).catch(err => 
+        console.warn('Failed to delete local file:', err)
+      );
+      
+      // Trigger GitHub Actions workflow
+      await githubActionsService.triggerScan({
+        scanId: scan.id,
+        fileUrl: fileUrl,
+        fileName: req.file.originalname,
+        scanType,
+        userId
+      });
+      
+      console.log(`✅ Scan ${scan.id} queued for GitHub Actions processing`);
+      
+      return res.json({
+        success: true,
+        message: 'Scan queued successfully - GitHub Actions will process it',
+        data: {
+          scanId: scan.id,
+          projectId: project.id,
+          status: 'queued',
+          estimatedTime: scanType === 'fast' ? '2-3 minutes' : '5-10 minutes'
+        }
+      });
+    } catch (uploadError) {
+      console.error('File upload/processing error:', uploadError);
+      
+      // Update scan to failed
+      await supabase
+        .from('scans')
+        .update({
+          status: 'failed',
+          finished_at: new Date().toISOString(),
+          error_message: uploadError.message
+        })
+        .eq('id', scan.id);
+      
+      // Clean up local file
+      await fs.unlink(req.file.path).catch(() => {});
+      
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to process file upload',
+        error: uploadError.message
+      });
+    }
   } catch (error) {
     console.error('File scan error:', error);
+    
+    // Clean up local file if it exists
+    if (req.file?.path) {
+      await fs.unlink(req.file.path).catch(() => {});
+    }
+    
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
