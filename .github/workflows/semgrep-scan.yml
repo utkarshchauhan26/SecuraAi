@@ -158,6 +158,16 @@ jobs:
             echo "❌ No file URL or repository URL provided"
             exit 1
           fi
+          
+          # Show directory structure for debugging
+          echo "📁 Scan workspace contents:"
+          ls -la scan_workspace/
+          echo ""
+          echo "📁 Project directory contents:"
+          ls -la scan_workspace/project/ | head -20
+          echo ""
+          echo "📊 Total files in project:"
+          find scan_workspace/project/ -type f | wc -l
       
       - name: Run Semgrep Fast Scan
         if: |
@@ -174,7 +184,7 @@ jobs:
             --no-git-ignore \
             --timeout=300 \
             --max-memory=2000 \
-            scan_workspace/ || true
+            scan_workspace/project/ || true
       
       - name: Run Semgrep Deep Scan
         if: |
@@ -191,7 +201,7 @@ jobs:
             --no-git-ignore \
             --timeout=600 \
             --max-memory=2000 \
-            scan_workspace/ || true
+            scan_workspace/project/ || true
       
       - name: Upload results to Supabase
         if: always()
@@ -462,8 +472,15 @@ jobs:
               findings = results.get('results', [])
               # Count total files scanned from Semgrep output
               files_scanned = len(results.get('paths', {}).get('scanned', []))
+              print(f"📊 Semgrep scan results:")
+              print(f"   Results: {len(findings)} findings")
+              print(f"   Files scanned: {files_scanned}")
           except FileNotFoundError:
               print("⚠️  No results file found")
+              findings = []
+              files_scanned = 0
+          except Exception as e:
+              print(f"⚠️  Error reading results: {str(e)}")
               findings = []
               files_scanned = 0
           
@@ -497,8 +514,10 @@ jobs:
           # If Semgrep didn't report scanned files, fallback to counting all files
           if files_scanned == 0:
               import os as os_lib
+              print("⚠️  Semgrep didn't report scanned files, counting manually...")
               files_scanned = sum(1 for root, dirs, files in os_lib.walk('scan_workspace/project') 
-                                  for f in files if f.endswith(('.py', '.js', '.ts', '.java', '.rb', '.php', '.go', '.c', '.cpp', '.cs')))
+                                  for f in files if f.endswith(('.py', '.js', '.ts', '.java', '.rb', '.php', '.go', '.c', '.cpp', '.cs', '.jsx', '.tsx')))
+              print(f"   Manually counted: {files_scanned} code files")
           
           scan_update = {
               'status': 'completed',
