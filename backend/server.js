@@ -48,10 +48,10 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Rate limiting - More generous limits for production use
+// Rate limiting - Tiered limits per endpoint type
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Increased to 500 requests per 15 minutes (was 100)
+  max: 500, // 500 requests per 15 minutes for general API
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -64,7 +64,50 @@ const apiLimiter = rateLimit({
     return req.path === '/health';
   }
 });
+
+// Stricter rate limit for scan endpoints (expensive operations)
+const scanLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20, // 20 scans per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many scan requests. Please wait before starting another scan.',
+    retryAfter: '15 minutes'
+  }
+});
+
+// Strict rate limit for auth-related endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30, // 30 auth attempts per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many authentication attempts. Please try again later.',
+    retryAfter: '15 minutes'
+  }
+});
+
+// Report generation rate limit
+const reportLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30, // 30 reports per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many report requests. Please try again later.',
+    retryAfter: '15 minutes'
+  }
+});
+
 app.use('/api', apiLimiter);
+app.use('/api/scans/file', scanLimiter);
+app.use('/api/scans/repo', scanLimiter);
+app.use('/api/reports', reportLimiter);
 
 // Routes
 app.use('/api', routes);

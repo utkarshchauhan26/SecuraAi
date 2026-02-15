@@ -5,6 +5,7 @@ const path = require('path');
 const scanController = require('../controllers/scan-controller-github-actions'); // Use GitHub Actions controller
 const { validateFileType } = require('../middleware/fileValidation');
 const { requireAuthSupabase } = require('../middleware/auth-supabase');
+const { validate, sanitizeBody, repoUrlSchema, scanIdSchema, paginationSchema } = require('../middleware/validation');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -25,12 +26,15 @@ const upload = multer({
 // All routes require authentication
 router.use(requireAuthSupabase);
 
-// Routes
+// Sanitize all request bodies
+router.use(sanitizeBody);
+
+// Routes with input validation
 router.post('/file', upload.single('codeFile'), validateFileType, scanController.scanFile);
-router.post('/repo', scanController.scanRepository);
-router.get('/status/:scanId', scanController.getScanStatus); // Get scan status
-router.get('/progress/:scanId', scanController.getScanProgress); // Get real-time progress
-router.get('/details/:scanId', scanController.getScanDetails);
-router.get('/list', scanController.getUserScans); // Get all user scans
+router.post('/repo', validate(repoUrlSchema, 'body'), scanController.scanRepository);
+router.get('/status/:scanId', validate(scanIdSchema, 'params'), scanController.getScanStatus);
+router.get('/progress/:scanId', validate(scanIdSchema, 'params'), scanController.getScanProgress);
+router.get('/details/:scanId', validate(scanIdSchema, 'params'), scanController.getScanDetails);
+router.get('/list', validate(paginationSchema, 'query'), scanController.getUserScans);
 
 module.exports = router;

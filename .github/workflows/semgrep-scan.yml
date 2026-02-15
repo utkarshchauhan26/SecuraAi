@@ -465,24 +465,56 @@ jobs:
           from urllib.error import HTTPError
           from datetime import datetime
           
+          # Count ALL files in the project directory first
+          import os as os_lib
+          code_extensions = ('.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.rb', '.php', '.go',
+                             '.c', '.cpp', '.cs', '.html', '.css', '.scss', '.json', '.xml',
+                             '.yaml', '.yml', '.sh', '.bash', '.sql', '.rs', '.kt', '.swift',
+                             '.dart', '.vue', '.svelte', '.r', '.m', '.h', '.hpp')
+          all_extensions = set()
+          total_project_files = 0
+          for root, dirs, file_list in os_lib.walk('scan_workspace/project'):
+              # Skip hidden dirs and node_modules
+              dirs[:] = [d for d in dirs if not d.startswith('.') and d != 'node_modules' and d != '__pycache__']
+              for fname in file_list:
+                  if not fname.startswith('.'):
+                      total_project_files += 1
+                      ext = os_lib.path.splitext(fname)[1].lower()
+                      if ext:
+                          all_extensions.add(ext)
+          
+          # Count only code files
+          code_file_count = 0
+          for root, dirs, file_list in os_lib.walk('scan_workspace/project'):
+              dirs[:] = [d for d in dirs if not d.startswith('.') and d != 'node_modules' and d != '__pycache__']
+              for fname in file_list:
+                  ext = os_lib.path.splitext(fname)[1].lower()
+                  if ext in code_extensions:
+                      code_file_count += 1
+          
+          print(f"[FILES] Total project files: {total_project_files}")
+          print(f"[FILES] Code files found: {code_file_count}")
+          print(f"[FILES] Extensions seen: {sorted(all_extensions)}")
+          
+          # Use total project files as files_scanned (all files in scope)
+          files_scanned = total_project_files if total_project_files > 0 else code_file_count
+          
           # Read findings from results file
           try:
               with open('semgrep-results.json', 'r') as f:
                   results = json.load(f)
               findings = results.get('results', [])
-              # Count total files scanned from Semgrep output
-              files_scanned = len(results.get('paths', {}).get('scanned', []))
-              print(f"📊 Semgrep scan results:")
-              print(f"   Results: {len(findings)} findings")
-              print(f"   Files scanned: {files_scanned}")
+              semgrep_scanned = len(results.get('paths', {}).get('scanned', []))
+              print(f"Semgrep scan results:")
+              print(f"   Semgrep analyzed: {semgrep_scanned} files (language-matched)")
+              print(f"   Total project files: {files_scanned}")
+              print(f"   Findings: {len(findings)}")
           except FileNotFoundError:
-              print("⚠️  No results file found")
+              print("No results file found")
               findings = []
-              files_scanned = 0
           except Exception as e:
-              print(f"⚠️  Error reading results: {str(e)}")
+              print(f"Error reading results: {str(e)}")
               findings = []
-              files_scanned = 0
           
           scan_id = os.environ.get('SCAN_ID')
           supabase_url = os.environ.get('SUPABASE_URL')
@@ -510,14 +542,6 @@ jobs:
           # Calculate unique files with findings
           file_paths = set(f.get('path', 'unknown') for f in findings)
           file_count = len(file_paths) if findings else 0
-          
-          # If Semgrep didn't report scanned files, fallback to counting all files
-          if files_scanned == 0:
-              import os as os_lib
-              print("⚠️  Semgrep didn't report scanned files, counting manually...")
-              files_scanned = sum(1 for root, dirs, files in os_lib.walk('scan_workspace/project') 
-                                  for f in files if f.endswith(('.py', '.js', '.ts', '.java', '.rb', '.php', '.go', '.c', '.cpp', '.cs', '.jsx', '.tsx')))
-              print(f"   Manually counted: {files_scanned} code files")
           
           scan_update = {
               'status': 'completed',
