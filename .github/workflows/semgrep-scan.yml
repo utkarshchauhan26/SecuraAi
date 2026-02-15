@@ -460,9 +460,12 @@ jobs:
               with open('semgrep-results.json', 'r') as f:
                   results = json.load(f)
               findings = results.get('results', [])
+              # Count total files scanned from Semgrep output
+              files_scanned = len(results.get('paths', {}).get('scanned', []))
           except FileNotFoundError:
               print("⚠️  No results file found")
               findings = []
+              files_scanned = 0
           
           scan_id = os.environ.get('SCAN_ID')
           supabase_url = os.environ.get('SUPABASE_URL')
@@ -487,9 +490,15 @@ jobs:
               severity = severity_map.get(raw_severity, 'MEDIUM')
               severity_counts[severity] = severity_counts.get(severity, 0) + 1
           
-          # Calculate unique files scanned
+          # Calculate unique files with findings
           file_paths = set(f.get('path', 'unknown') for f in findings)
           file_count = len(file_paths) if findings else 0
+          
+          # If Semgrep didn't report scanned files, fallback to counting all files
+          if files_scanned == 0:
+              import os as os_lib
+              files_scanned = sum(1 for root, dirs, files in os_lib.walk('scan_workspace/project') 
+                                  for f in files if f.endswith(('.py', '.js', '.ts', '.java', '.rb', '.php', '.go', '.c', '.cpp', '.cs')))
           
           scan_update = {
               'status': 'completed',
@@ -497,6 +506,7 @@ jobs:
               'progress': 100,
               'file_count': file_count,
               'processed_files': file_count,
+              'files_scanned': files_scanned,
               'total_findings': len(findings),
               'critical_count': severity_counts['CRITICAL'],
               'high_count': severity_counts['HIGH'],
@@ -524,8 +534,9 @@ jobs:
                   print(f"✅ Updated scan {scan_id} to completed")
                   print(f"   Status: completed")
                   print(f"   Progress: 100%")
-                  print(f"   Files: {file_count}")
-                  print(f"   Findings: {len(findings)}")
+                  print(f"   Files Scanned: {files_scanned}")
+                  print(f"   Files with Findings: {file_count}")
+                  print(f"   Total Findings: {len(findings)}")
                   print(f"   Critical: {severity_counts['CRITICAL']}, High: {severity_counts['HIGH']}, Medium: {severity_counts['MEDIUM']}, Low: {severity_counts['LOW']}")
           except HTTPError as e:
               error_body = e.read().decode('utf-8')

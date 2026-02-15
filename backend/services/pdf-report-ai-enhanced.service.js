@@ -299,7 +299,7 @@ class AIEnhancedPDFService {
    * SECTION 2: EXECUTIVE SUMMARY with Dual Scores
    */
   _addExecutiveSummary(doc, scan, metrics, scores) {
-    this._sectionHeader(doc, '📊 Executive Summary');
+    this._sectionHeader(doc, 'Executive Summary');
 
     doc.fontSize(this.fonts.body)
        .font('Helvetica')
@@ -436,7 +436,7 @@ class AIEnhancedPDFService {
     doc.fontSize(this.fonts.small)
        .font('Helvetica-Oblique')
        .fillColor(this.colors.textLight)
-       .text('🧾 This project meets key voluntary compliance standards for General-Purpose AI under the EU AI Act (2025).', {
+       .text('This project meets key voluntary compliance standards for General-Purpose AI under the EU AI Act (2025).', {
          align: 'center',
          lineGap: 3
        });
@@ -449,7 +449,7 @@ class AIEnhancedPDFService {
    */
   _addDetailedFindings(doc, findings, metrics) {
     this._checkNewPage(doc, 100);
-    this._sectionHeader(doc, '🔍 Detailed Semgrep Findings');
+    this._sectionHeader(doc, 'Detailed Semgrep Findings');
 
     doc.fontSize(this.fonts.body)
        .font('Helvetica')
@@ -499,7 +499,7 @@ class AIEnhancedPDFService {
    */
   _addGeminiSummary(doc, aiSummary, scores) {
     this._checkNewPage(doc, 150);
-    this._sectionHeader(doc, '🧠 Gemini AI Recommendations');
+    this._sectionHeader(doc, 'Gemini AI Recommendations');
 
     if (!aiSummary || !aiSummary.summary) {
       doc.fontSize(this.fonts.body).fillColor(this.colors.textLight)
@@ -546,7 +546,7 @@ class AIEnhancedPDFService {
    */
   _addChartsSection(doc, metrics) {
     this._checkNewPage(doc, 120);
-    this._sectionHeader(doc, '📊 Vulnerability Distribution');
+    this._sectionHeader(doc, 'Vulnerability Distribution');
 
     // Simple ASCII bar chart
     const chartData = [
@@ -588,7 +588,7 @@ class AIEnhancedPDFService {
    */
   _addCertificationSection(doc, scores, metrics) {
     this._checkNewPage(doc, 100);
-    this._sectionHeader(doc, '🏆 Final Summary & Certification');
+    this._sectionHeader(doc, 'Final Summary & Certification');
 
     const smartScore = scores?.smartScore?.score || 70;
     const euScore = scores?.euAIScore?.score || 60;
@@ -640,7 +640,7 @@ class AIEnhancedPDFService {
    */
   _addAppendix(doc, scan) {
     this._checkNewPage(doc, 120);
-    this._sectionHeader(doc, '📄 Appendix');
+    this._sectionHeader(doc, 'Appendix');
 
     doc.fontSize(this.fonts.heading3)
        .font('Helvetica-Bold')
