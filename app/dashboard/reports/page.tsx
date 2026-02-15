@@ -9,7 +9,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useMemo, useState } from "react"
 import { useScans } from "@/hooks/use-api"
 import { apiClient } from "@/lib/api-client"
-import { Calendar, Download, FileText, RefreshCw, Search, TrendingUp, CheckCircle, AlertTriangle } from "lucide-react"
+import { 
+  Calendar, 
+  Download, 
+  FileText, 
+  RefreshCw, 
+  Search, 
+  TrendingUp, 
+  CheckCircle, 
+  AlertTriangle,
+  Shield,
+  Clock,
+  GitBranch,
+  FileCode
+} from "lucide-react"
 
 type AnyScan = any
 
@@ -120,6 +133,12 @@ export default function ReportsPage() {
   const total = Array.isArray(scans) ? scans.length : 0
   const completed = Array.isArray(scans) ? scans.filter((s: AnyScan) => s.status?.toUpperCase() === "COMPLETED").length : 0
   const avgRisk = total > 0 ? Math.round((scans as AnyScan[]).reduce((sum, s) => sum + (s.riskScore || 0), 0) / total) : 0
+  const totalFindings = Array.isArray(scans) 
+    ? (scans as AnyScan[]).reduce((sum, s) => sum + (s.criticalCount || 0) + (s.highCount || 0) + (s.mediumCount || 0) + (s.lowCount || 0), 0) 
+    : 0
+  const totalFilesScanned = Array.isArray(scans)
+    ? (scans as AnyScan[]).reduce((sum, s) => sum + (s.filesScanned || 0), 0)
+    : 0
 
   return (
     <DashboardLayout>
@@ -181,7 +200,7 @@ export default function ReportsPage() {
 
           {/* Summary Cards */}
           {total > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <Card className="glassmorphism p-6">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
@@ -193,6 +212,7 @@ export default function ReportsPage() {
                   </div>
                 </div>
               </Card>
+              
               <Card className="glassmorphism p-6">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center">
@@ -204,6 +224,7 @@ export default function ReportsPage() {
                   </div>
                 </div>
               </Card>
+              
               <Card className="glassmorphism p-6">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
@@ -212,6 +233,30 @@ export default function ReportsPage() {
                   <div>
                     <p className="text-2xl font-bold">{avgRisk}</p>
                     <p className="text-sm text-muted-foreground">Avg Risk Score</p>
+                  </div>
+                </div>
+              </Card>
+              
+              <Card className="glassmorphism p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center">
+                    <Shield className="w-6 h-6 text-red-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{totalFindings}</p>
+                    <p className="text-sm text-muted-foreground">Total Findings</p>
+                  </div>
+                </div>
+              </Card>
+              
+              <Card className="glassmorphism p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                    <FileCode className="w-6 h-6 text-purple-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{totalFilesScanned}</p>
+                    <p className="text-sm text-muted-foreground">Files Scanned</p>
                   </div>
                 </div>
               </Card>
@@ -244,57 +289,147 @@ export default function ReportsPage() {
 
                 return (
                   <Card key={scan.id} className="glassmorphism p-6 hover:bg-card/70 transition-colors">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
-                          <h3 className="text-lg font-semibold">Scan #{String(scan.id).substring(0, 8)}</h3>
-                          <Badge variant="outline" className={statusBadge.className}>
-                            <StatusIcon className="w-3 h-3 mr-1.5" />
-                            {scan.status}
-                          </Badge>
+                    <div className="flex flex-col gap-4">
+                      {/* Header Section */}
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-semibold">Scan #{String(scan.id).substring(0, 8)}</h3>
+                            <Badge variant="outline" className={statusBadge.className}>
+                              <StatusIcon className="w-3 h-3 mr-1.5" />
+                              {scan.status}
+                            </Badge>
+                            <Badge variant="outline" className="capitalize">
+                              {scan.scanType} Scan
+                            </Badge>
+                          </div>
+                          
+                          {/* Target Path */}
+                          {scan.targetPath && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
+                              <GitBranch className="w-4 h-4" />
+                              <span className="truncate max-w-md">{scan.targetPath}</span>
+                            </div>
+                          )}
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1">Type</p>
-                            <p className="font-medium capitalize">{scan.scanType}</p>
+                        <div className="flex gap-2 flex-shrink-0">
+                          {scan.status?.toUpperCase() === "COMPLETED" && pdfUrl && (
+                            <Button onClick={() => handleDownloadPDF(scan)} variant="default" size="sm">
+                              <Download className="w-4 h-4 mr-2" />
+                              Download PDF
+                            </Button>
+                          )}
+                          {scan.status?.toUpperCase() === "COMPLETED" && !pdfUrl && (
+                            <Button variant="outline" size="sm" disabled>
+                              <AlertTriangle className="w-4 h-4 mr-2" />
+                              No PDF
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Stats Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        {/* Risk Score */}
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Shield className="w-3 h-3" />
+                            Risk Score
                           </div>
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1">Risk Score</p>
-                            <p className={`font-bold text-lg ${getRiskColor(scan.riskScore || 0)}`}>{scan.riskScore || 0}/100</p>
+                          <p className={`font-bold text-xl ${getRiskColor(scan.riskScore || 0)}`}>
+                            {scan.riskScore || 0}/100
+                          </p>
+                        </div>
+
+                        {/* Files Scanned */}
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <FileCode className="w-3 h-3" />
+                            Files Scanned
                           </div>
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1">Files Scanned</p>
-                            <p className="font-medium">{scan.filesScanned || 0}</p>
+                          <p className="font-semibold text-lg">{scan.filesScanned || 0}</p>
+                        </div>
+
+                        {/* Total Findings */}
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <AlertTriangle className="w-3 h-3" />
+                            Total Findings
                           </div>
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1">Date</p>
-                            <p className="font-medium flex items-center gap-1.5">
-                              <Calendar className="w-3 h-3" />
-                              {new Date(scan.createdAt).toLocaleDateString()}
+                          <p className="font-semibold text-lg">
+                            {(scan.criticalCount || 0) + (scan.highCount || 0) + (scan.mediumCount || 0) + (scan.lowCount || 0)}
+                          </p>
+                        </div>
+
+                        {/* Date */}
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Calendar className="w-3 h-3" />
+                            Created
+                          </div>
+                          <p className="font-medium text-sm">
+                            {new Date(scan.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+
+                        {/* Processing Time */}
+                        {scan.startedAt && scan.finishedAt && (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Clock className="w-3 h-3" />
+                              Duration
+                            </div>
+                            <p className="font-medium text-sm">
+                              {Math.round((new Date(scan.finishedAt).getTime() - new Date(scan.startedAt).getTime()) / 1000)}s
                             </p>
                           </div>
+                        )}
+                      </div>
+
+                      {/* Severity Breakdown */}
+                      {scan.status?.toUpperCase() === "COMPLETED" && (
+                        <div className="pt-3 border-t border-border/50">
+                          <p className="text-xs text-muted-foreground mb-2.5">Findings by Severity</p>
+                          <div className="flex gap-4 flex-wrap">
+                            {/* Critical */}
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-red-500" />
+                              <span className="text-sm">
+                                <span className="font-semibold text-red-500">{scan.criticalCount || 0}</span>
+                                <span className="text-muted-foreground ml-1">Critical</span>
+                              </span>
+                            </div>
+                            
+                            {/* High */}
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-orange-500" />
+                              <span className="text-sm">
+                                <span className="font-semibold text-orange-500">{scan.highCount || 0}</span>
+                                <span className="text-muted-foreground ml-1">High</span>
+                              </span>
+                            </div>
+                            
+                            {/* Medium */}
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                              <span className="text-sm">
+                                <span className="font-semibold text-yellow-500">{scan.mediumCount || 0}</span>
+                                <span className="text-muted-foreground ml-1">Medium</span>
+                              </span>
+                            </div>
+                            
+                            {/* Low */}
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-blue-500" />
+                              <span className="text-sm">
+                                <span className="font-semibold text-blue-500">{scan.lowCount || 0}</span>
+                                <span className="text-muted-foreground ml-1">Low</span>
+                              </span>
+                            </div>
+                          </div>
                         </div>
-
-                        {scan.completedAt && (
-                          <p className="text-xs text-muted-foreground mt-3">Completed: {new Date(scan.completedAt).toLocaleString()}</p>
-                        )}
-                      </div>
-
-                      <div className="flex gap-2">
-                        {scan.status?.toUpperCase() === "COMPLETED" && pdfUrl && (
-                          <Button onClick={() => handleDownloadPDF(scan)} variant="default">
-                            <Download className="w-4 h-4 mr-2" />
-                            Download PDF
-                          </Button>
-                        )}
-                        {scan.status?.toUpperCase() === "COMPLETED" && !pdfUrl && (
-                          <Button variant="outline" disabled>
-                            <AlertTriangle className="w-4 h-4 mr-2" />
-                            No PDF Available
-                          </Button>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </Card>
                 )
